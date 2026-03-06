@@ -178,8 +178,8 @@ export function RestaurantSplitView({
                 className={cn(
                   "inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-medium transition-all active:scale-95 whitespace-nowrap",
                   isActive
-                    ? "bg-[#F9F6F0] text-[#D4AF37] border border-[#D4AF37] shadow-[0_2px_10px_rgba(212,175,55,0.12)]"
-                    : "border border-[#E8E4DC] text-[#5C5C5C] bg-white hover:border-[#D4AF37]/40 hover:text-[#1A1A1A]",
+                    ? "bg-orange-50 text-orange-600 border border-orange-300 shadow-sm"
+                    : "border border-gray-200 text-slate-500 bg-white hover:border-orange-200 hover:text-slate-700",
                 )}
               >
                 <Icon className="h-3.5 w-3.5" />
@@ -194,14 +194,14 @@ export function RestaurantSplitView({
       <section className="grid gap-6 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.38fr)]">
         {/* Card panel */}
         <div className="glass-panel rounded-4xl p-4 sm:p-5">
-          <div className="flex flex-col gap-3 border-b border-[#E8E4DC] px-1 pb-4">
+          <div className="flex flex-col gap-3 border-b border-gray-200 px-1 pb-4">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-[10px] uppercase tracking-[0.24em] text-[#5C5C5C]">Interactive feed</p>
-                <h2 className="mt-0.5 font-display text-2xl tracking-wide text-[#1A1A1A]">Curated List</h2>
+                <p className="text-[10px] uppercase tracking-[0.24em] text-slate-400">Interactive feed</p>
+                <h2 className="mt-0.5 font-display text-2xl tracking-wide text-slate-900">Curated List</h2>
               </div>
-              <div className="hidden items-center gap-2 rounded-full border border-[#E8E4DC] bg-[#F9F6F0] px-4 py-2 text-sm text-[#5C5C5C] sm:flex">
-                <MapPinned className="h-4 w-4 text-accent" />
+              <div className="hidden items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-4 py-2 text-sm text-slate-500 sm:flex">
+                <MapPinned className="h-4 w-4 text-[#FF6B35]" />
                 Hover a card to move the pin.
               </div>
             </div>
@@ -209,12 +209,12 @@ export function RestaurantSplitView({
               <button
                 type="button"
                 onClick={onRequestLocation}
-                className="inline-flex items-center gap-2 rounded-full border border-[#E8E4DC] bg-[#F9F6F0] px-4 py-2 text-sm text-[#1A1A1A] hover:border-accent/40 hover:bg-[#FBF8EE] active:scale-95"
+                className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-4 py-2 text-sm text-slate-700 hover:border-orange-200 hover:bg-orange-50 active:scale-95"
               >
-                <LocateFixed className="h-4 w-4 text-accent" />
+                <LocateFixed className="h-4 w-4 text-[#FF6B35]" />
                 {locationStatus === "ready" ? "Location synced" : "Use my location"}
               </button>
-              <div className="rounded-full border border-[#E8E4DC] bg-white px-4 py-2 text-sm text-[#5C5C5C]">
+              <div className="rounded-full border border-gray-200 bg-white px-4 py-2 text-sm text-slate-500">
                 {locationStatus === "ready"
                   ? "Sorted by proximity."
                   : locationStatus === "requesting"
@@ -299,8 +299,8 @@ function RestaurantCard({ restaurant, distanceLabel, isActive, onHover, onBookNo
         "hover:shadow-[0_16px_48px_rgb(0,0,0,0.08)]",
         restaurant.layout === "wide" && "xl:col-span-2",
         isActive
-          ? "border-[#D4AF37]/40"
-          : "border-[#E8E4DC] hover:border-[#D4AF37]/30",
+          ? "border-orange-300"
+          : "border-gray-200 hover:border-orange-200",
       )}
       whileHover={{ y: -5, scale: 1.005 }}
       transition={{ type: "spring", stiffness: 300, damping: 28 }}
@@ -327,7 +327,7 @@ function RestaurantCard({ restaurant, distanceLabel, isActive, onHover, onBookNo
         </AnimatePresence>
 
         {/* Distance badge */}
-        <div className="absolute left-3 top-3 z-10 rounded-full border border-white/60 bg-white/80 px-3 py-1 text-[10px] font-medium text-[#1A1A1A] backdrop-blur-sm">
+        <div className="absolute left-3 top-3 z-10 rounded-full border border-white/60 bg-white/80 px-3 py-1 text-[10px] font-medium text-slate-900 backdrop-blur-sm">
           {distanceLabel}
         </div>
 
@@ -337,14 +337,14 @@ function RestaurantCard({ restaurant, distanceLabel, isActive, onHover, onBookNo
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); prev(); }}
-              className="absolute left-2 top-1/2 z-10 -translate-y-1/2 flex h-7 w-7 items-center justify-center rounded-full bg-white/80 text-[#1A1A1A] shadow-sm backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity"
+              className="absolute left-2 top-1/2 z-10 -translate-y-1/2 flex h-7 w-7 items-center justify-center rounded-full bg-white/80 text-slate-900 shadow-sm backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); next(); }}
-              className="absolute right-2 top-1/2 z-10 -translate-y-1/2 flex h-7 w-7 items-center justify-center rounded-full bg-white/80 text-[#1A1A1A] shadow-sm backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity"
+              className="absolute right-2 top-1/2 z-10 -translate-y-1/2 flex h-7 w-7 items-center justify-center rounded-full bg-white/80 text-slate-900 shadow-sm backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity"
             >
               <ChevronRight className="h-4 w-4" />
             </button>
@@ -370,19 +370,19 @@ function RestaurantCard({ restaurant, distanceLabel, isActive, onHover, onBookNo
       <div className="p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 space-y-0.5">
-            <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.22em] text-[#5C5C5C]">
-              <Icon className="h-3 w-3 text-accent shrink-0" />
+            <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.22em] text-slate-400">
+              <Icon className="h-3 w-3 text-[#FF6B35] shrink-0" />
               {restaurant.cuisine}
             </div>
-            <h3 className="font-display text-xl leading-tight text-[#1A1A1A] truncate">{restaurant.name}</h3>
-            <p className="text-[11px] text-[#5C5C5C]">{restaurant.neighborhood}</p>
+            <h3 className="font-display text-xl leading-tight text-slate-900 truncate">{restaurant.name}</h3>
+            <p className="text-[11px] text-slate-500">{restaurant.neighborhood}</p>
           </div>
           <div className="shrink-0 text-right">
             <div className="flex items-center justify-end gap-1">
-              <Star className="h-3.5 w-3.5 fill-[#D4AF37] text-[#D4AF37]" />
-              <span className="text-sm font-semibold text-[#1A1A1A]">{restaurant.rating.toFixed(1)}</span>
+              <Star className="h-3.5 w-3.5 fill-orange-500 text-orange-500" />
+              <span className="text-sm font-semibold text-slate-900">{restaurant.rating.toFixed(1)}</span>
             </div>
-            <p className="mt-0.5 text-[11px] text-[#5C5C5C]">{restaurant.price}</p>
+            <p className="mt-0.5 text-[11px] text-slate-500">{restaurant.price}</p>
           </div>
         </div>
 
@@ -391,7 +391,7 @@ function RestaurantCard({ restaurant, distanceLabel, isActive, onHover, onBookNo
           {restaurant.dietary_tags.slice(0, 2).map((tag) => (
             <span
               key={tag}
-              className="rounded-full border border-[#E8E4DC] bg-[#F9F6F0] px-2.5 py-0.5 text-[10px] text-[#5C5C5C]"
+              className="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-0.5 text-[10px] text-slate-500"
             >
               {tag}
             </span>
@@ -404,7 +404,7 @@ function RestaurantCard({ restaurant, distanceLabel, isActive, onHover, onBookNo
             {restaurant.reservationSlots.slice(0, 2).map((slot) => (
               <span
                 key={slot}
-                className="rounded-full border border-[#E8E4DC] bg-[#FAFAFA] px-2.5 py-1 text-[10px] text-[#5C5C5C]"
+                className="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-[10px] text-slate-500"
               >
                 {slot}
               </span>
@@ -413,7 +413,7 @@ function RestaurantCard({ restaurant, distanceLabel, isActive, onHover, onBookNo
           <motion.button
             type="button"
             onClick={onBookNow}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-[#D4AF37] px-4 py-2 text-xs font-semibold text-white shadow-[0_4px_16px_rgba(212,175,55,0.28)] hover:shadow-[0_8px_24px_rgba(212,175,55,0.36)] active:scale-95"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-[#FF6B35] px-4 py-2 text-xs font-semibold text-white shadow-[0_4px_16px_rgba(255,107,53,0.28)] hover:shadow-[0_8px_24px_rgba(255,107,53,0.36)] active:scale-95"
             animate={{ width: isActive ? 100 : 82 }}
             transition={{ type: "spring", stiffness: 280, damping: 22 }}
           >
@@ -478,16 +478,16 @@ function MapPanel({
       <div className="glass-panel sticky top-24 flex min-h-[40rem] flex-col overflow-hidden rounded-4xl p-6">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <p className="text-[10px] uppercase tracking-[0.24em] text-[#5C5C5C]">Map preview</p>
-            <h3 className="mt-1 font-display text-3xl text-[#1A1A1A]">Connect Mapbox to go live</h3>
+            <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">Map preview</p>
+            <h3 className="mt-1 font-display text-3xl text-slate-900">Connect Mapbox to go live</h3>
           </div>
-          <div className="rounded-full border border-[#D4AF37]/30 bg-[#F9F6F0] px-4 py-2 text-xs uppercase tracking-[0.2em] text-[#D4AF37]">
+          <div className="rounded-full border border-orange-200 bg-orange-50 px-4 py-2 text-xs uppercase tracking-[0.2em] text-orange-500">
             Add NEXT_PUBLIC_MAPBOX_TOKEN
           </div>
         </div>
 
-        <div className="relative mt-6 flex-1 overflow-hidden rounded-3xl border border-[#E8E4DC] bg-[radial-gradient(circle_at_top,rgba(212,175,55,0.08),transparent_28%),#F9F6F0]">
-          <div className="absolute inset-0 bg-[linear-gradient(rgba(212,175,55,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(212,175,55,0.06)_1px,transparent_1px)] bg-[size:72px_72px]" />
+        <div className="relative mt-6 flex-1 overflow-hidden rounded-3xl border border-gray-200 bg-[radial-gradient(circle_at_top,rgba(255,107,53,0.06),transparent_28%),#F1F5F9]">
+          <div className="absolute inset-0 bg-[linear-gradient(rgba(0,0,0,0.04)_1px,transparent_1px),linear-gradient(90deg,rgba(0,0,0,0.04)_1px,transparent_1px)] bg-[size:72px_72px]" />
           {restaurants.map(({ restaurant, distanceLabel }, index) => {
             const left = 18 + ((index * 13) % 60);
             const top  = 18 + ((index * 17) % 58);
@@ -500,8 +500,8 @@ function MapPanel({
                 className={cn(
                   "absolute rounded-full border px-3 py-2 text-left backdrop-blur-md shadow-[0_4px_16px_rgb(0,0,0,0.06)]",
                   isActive
-                    ? "border-[#D4AF37] bg-[#D4AF37] text-white"
-                    : "border-[#E8E4DC] bg-white text-[#1A1A1A]",
+                    ? "border-[#FF6B35] bg-[#FF6B35] text-white"
+                    : "border-gray-200 bg-white text-slate-900",
                 )}
                 style={{ left: `${left}%`, top: `${top}%` }}
                 onMouseEnter={() => setActiveRestaurantId(restaurant.id)}
@@ -517,27 +517,27 @@ function MapPanel({
             );
           })}
 
-          <div className="absolute bottom-6 left-6 right-6 rounded-3xl border border-[#E8E4DC] bg-white/90 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.06)] backdrop-blur-xl">
-            <p className="text-[10px] uppercase tracking-[0.24em] text-[#5C5C5C]">Ready when you are</p>
+          <div className="absolute bottom-6 left-6 right-6 rounded-3xl border border-gray-200 bg-white/90 p-5 shadow-md backdrop-blur-xl">
+            <p className="text-[10px] uppercase tracking-[0.24em] text-slate-400">Ready when you are</p>
             <div className="mt-3 flex flex-wrap items-end justify-between gap-4">
               <div>
-                <h4 className="font-display text-2xl text-[#1A1A1A]">{activeRestaurant!.restaurant.name}</h4>
-                <p className="mt-1 text-sm text-[#5C5C5C]">
+                <h4 className="font-display text-2xl text-slate-900">{activeRestaurant!.restaurant.name}</h4>
+                <p className="mt-1 text-sm text-slate-500">
                   {activeRestaurant!.restaurant.neighborhood} · {activeRestaurant!.restaurant.cuisine}
                 </p>
               </div>
               {locationStatus === "ready" ? (
-                <div className="flex items-center gap-2 rounded-full border border-[#E8E4DC] bg-[#F9F6F0] px-4 py-2 text-sm text-[#5C5C5C]">
-                  <LocateFixed className="h-4 w-4 text-accent" />
+                <div className="flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-4 py-2 text-sm text-slate-500">
+                  <LocateFixed className="h-4 w-4 text-[#FF6B35]" />
                   Live distance sync active.
                 </div>
               ) : (
                 <button
                   type="button"
                   onClick={onRequestLocation}
-                  className="flex items-center gap-2 rounded-full border border-[#E8E4DC] bg-[#F9F6F0] px-4 py-2 text-sm text-[#1A1A1A] hover:border-accent/40 active:scale-95"
+                  className="flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-4 py-2 text-sm text-slate-700 hover:border-orange-200 active:scale-95"
                 >
-                  <CalendarDays className="h-4 w-4 text-accent" />
+                  <CalendarDays className="h-4 w-4 text-[#FF6B35]" />
                   Enable proximity sorting.
                 </button>
               )}
@@ -551,7 +551,7 @@ function MapPanel({
   // ── Live Mapbox map ────────────────────────────────────────────────────
   return (
     <div className="glass-panel sticky top-24 min-h-[40rem] overflow-hidden rounded-4xl p-2">
-      <div className="relative h-[calc(100vh-8rem)] min-h-[38rem] overflow-hidden rounded-3xl border border-[#E8E4DC]">
+      <div className="relative h-[calc(100vh-8rem)] min-h-[38rem] overflow-hidden rounded-3xl border border-gray-200">
         <Map
           ref={mapRef}
           reuseMaps
@@ -570,8 +570,8 @@ function MapPanel({
           {userLocation && (
             <Marker longitude={userLocation.longitude} latitude={userLocation.latitude} anchor="center">
               <div className="relative flex h-5 w-5 items-center justify-center">
-                <span className="absolute h-5 w-5 rounded-full bg-[#D4AF37]/30 animate-[pulse-ring_1.8s_ease-out_infinite]" />
-                <span className="relative h-3.5 w-3.5 rounded-full border-2 border-white bg-[#D4AF37] shadow-md" />
+                <span className="absolute h-5 w-5 rounded-full bg-orange-400/30 animate-[pulse-ring_1.8s_ease-out_infinite]" />
+                <span className="relative h-3.5 w-3.5 rounded-full border-2 border-white bg-[#FF6B35] shadow-md" />
               </div>
             </Marker>
           )}
@@ -596,14 +596,14 @@ function MapPanel({
                   transition={{ duration: 1.5, repeat: isActive ? Number.POSITIVE_INFINITY : 0, ease: "easeInOut" }}
                 >
                   {isActive && (
-                    <span className="absolute h-12 w-12 rounded-full border border-[#D4AF37]/40 bg-[#D4AF37]/10 animate-[pulse-ring_1.5s_ease-out_infinite]" />
+                    <span className="absolute h-12 w-12 rounded-full border border-orange-300/50 bg-orange-100/50 animate-[pulse-ring_1.5s_ease-out_infinite]" />
                   )}
                   <span
                     className={cn(
                       "relative flex min-w-[58px] items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold shadow-[0_4px_16px_rgb(0,0,0,0.1)]",
                       isActive
-                        ? "border-[#D4AF37] bg-[#D4AF37] text-white"
-                        : "border-[#E8E4DC] bg-white text-[#1A1A1A]",
+                        ? "border-[#FF6B35] bg-[#FF6B35] text-white"
+                        : "border-gray-200 bg-white text-slate-800",
                     )}
                   >
                     <Icon className="h-3 w-3" />
@@ -635,10 +635,10 @@ function MapPanel({
               <div className="space-y-1.5 p-3.5">
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <h4 className="font-display text-lg text-[#1A1A1A]">{activeRestaurant.restaurant.name}</h4>
-                    <p className="text-xs text-[#5C5C5C]">{activeRestaurant.restaurant.neighborhood}</p>
+                    <h4 className="font-display text-lg text-slate-900">{activeRestaurant.restaurant.name}</h4>
+                    <p className="text-xs text-slate-500">{activeRestaurant.restaurant.neighborhood}</p>
                   </div>
-                  <span className="shrink-0 rounded-full bg-[#F9F6F0] px-2.5 py-1 text-xs font-semibold text-[#D4AF37]">
+                  <span className="shrink-0 rounded-full bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-600">
                     {activeRestaurant.restaurant.rating.toFixed(1)}
                   </span>
                 </div>
@@ -646,7 +646,7 @@ function MapPanel({
                   {activeRestaurant.restaurant.reservationSlots.map((slot) => (
                     <span
                       key={slot}
-                      className="rounded-full border border-[#E8E4DC] bg-[#F9F6F0] px-2.5 py-0.5 text-[10px] text-[#5C5C5C]"
+                      className="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-0.5 text-[10px] text-slate-500"
                     >
                       {slot}
                     </span>
@@ -658,7 +658,7 @@ function MapPanel({
         </Map>
 
         {/* Floating label */}
-        <div className="pointer-events-none absolute left-4 top-4 rounded-full border border-[#E8E4DC] bg-white/90 px-4 py-2 text-xs text-[#5C5C5C] shadow-[0_4px_16px_rgb(0,0,0,0.06)] backdrop-blur-md">
+          <div className="pointer-events-none absolute left-4 top-4 rounded-full border border-gray-200 bg-white/90 px-4 py-2 text-xs text-slate-500 shadow-sm backdrop-blur-md">
           {locationStatus === "ready"
             ? "Live map · Synced to your location"
             : "Live map · Hover cards to move pins"}
@@ -671,13 +671,13 @@ function MapPanel({
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 10 }}
-            className="pointer-events-none absolute bottom-4 left-4 right-4 rounded-3xl border border-[#E8E4DC] bg-white/90 p-4 shadow-[0_8px_30px_rgb(0,0,0,0.08)] backdrop-blur-xl"
+            className="pointer-events-none absolute bottom-4 left-4 right-4 rounded-3xl border border-gray-200 bg-white/90 p-4 shadow-md backdrop-blur-xl"
           >
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p className="text-[10px] uppercase tracking-[0.24em] text-[#5C5C5C]">Now spotlighting</p>
-                <h3 className="mt-1 font-display text-2xl text-[#1A1A1A]">{activeRestaurant.restaurant.name}</h3>
-                <p className="mt-0.5 text-xs text-[#5C5C5C]">
+                <p className="text-[10px] uppercase tracking-[0.24em] text-slate-400">Now spotlighting</p>
+                <h3 className="mt-1 font-display text-2xl text-slate-900">{activeRestaurant.restaurant.name}</h3>
+                <p className="mt-0.5 text-xs text-slate-500">
                   {activeRestaurant.restaurant.cuisine} · {activeRestaurant.distanceLabel} · {activeRestaurant.restaurant.vibe}
                 </p>
               </div>
@@ -685,7 +685,7 @@ function MapPanel({
                 {activeRestaurant.restaurant.reservationSlots.map((slot) => (
                   <span
                     key={slot}
-                    className="rounded-full border border-[#E8E4DC] bg-[#F9F6F0] px-3 py-1.5 text-[10px] text-[#5C5C5C]"
+                      className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-[10px] text-slate-500"
                   >
                     {slot}
                   </span>

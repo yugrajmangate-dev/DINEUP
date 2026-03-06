@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useChat } from "@ai-sdk/react";
@@ -64,9 +64,9 @@ function ToolCallingBadge({ toolName }: { toolName: string }) {
 
   return (
     <div className="flex justify-start">
-      <div className="flex items-center gap-2 rounded-full border border-[#E8E4DC] bg-[#F9F6F0] px-4 py-2.5 text-xs text-[#5C5C5C] shadow-[0_4px_12px_rgb(0,0,0,0.05)]">
+      <div className="flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-4 py-2.5 text-xs text-slate-500 shadow-[0_4px_12px_rgb(0,0,0,0.05)]">
         <motion.span
-          className="h-2 w-2 rounded-full bg-[#D4AF37]"
+          className="h-2 w-2 rounded-full bg-[#FF6B35]"
           animate={{ scale: [1, 1.4, 1] }}
           transition={{ duration: 1, repeat: Number.POSITIVE_INFINITY }}
         />
@@ -125,21 +125,21 @@ function BookingCard({
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
-        className="max-w-[90%] overflow-hidden rounded-3xl border border-[#E8E4DC] bg-white shadow-[0_8px_30px_rgb(0,0,0,0.07)]"
+        className="max-w-[90%] overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-[0_8px_30px_rgb(0,0,0,0.07)]"
       >
         {/* Header */}
-        <div className="border-b border-[#E8E4DC] px-4 py-3">
+        <div className="border-b border-gray-200 px-4 py-3">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-[10px] uppercase tracking-[0.22em] text-[#5C5C5C]">{cuisine}</p>
-              <p className="mt-0.5 font-semibold text-[#1A1A1A]">{restaurantName}</p>
+              <p className="text-[10px] uppercase tracking-[0.22em] text-slate-500">{cuisine}</p>
+              <p className="mt-0.5 font-semibold text-slate-900">{restaurantName}</p>
             </div>
-            <div className="flex items-center gap-1 rounded-full border border-[#E8E4DC] bg-[#F9F6F0] px-2.5 py-1.5 text-xs text-[#D4AF37]">
-              <Star className="h-3 w-3 fill-[#D4AF37] text-[#D4AF37]" />
+            <div className="flex items-center gap-1 rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-xs text-orange-500">
+              <Star className="h-3 w-3 fill-orange-500 text-orange-500" />
               {rating.toFixed(1)}
             </div>
           </div>
-          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-[#5C5C5C]">
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
             <span className="flex items-center gap-1">
               <MapPin className="h-3 w-3" /> {neighborhood}
             </span>
@@ -149,14 +149,14 @@ function BookingCard({
 
         {/* Time slots */}
         <div className="px-4 py-3">
-          <p className="mb-2 text-[10px] uppercase tracking-[0.2em] text-[#5C5C5C]">Available tonight</p>
+          <p className="mb-2 text-[10px] uppercase tracking-[0.2em] text-slate-500">Available tonight</p>
           <div className="flex flex-wrap gap-2">
             {slots.map((slot) => (
               <span
                 key={slot}
-                className="flex items-center gap-1 rounded-full border border-[#E8E4DC] bg-[#F9F6F0] px-3 py-1.5 text-xs text-[#1A1A1A]"
+                className="flex items-center gap-1 rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-slate-900"
               >
-                <Clock className="h-3 w-3 text-[#D4AF37]" />
+                <Clock className="h-3 w-3 text-orange-500" />
                 {slot}
               </span>
             ))}
@@ -168,7 +168,7 @@ function BookingCard({
           <button
             type="button"
             onClick={() => onBook(restaurantId)}
-            className="flex w-full items-center justify-center gap-2 rounded-full bg-[#D4AF37] py-2.5 text-sm font-semibold text-white shadow-[0_6px_20px_rgba(212,175,55,0.28)] hover:shadow-[0_10px_28px_rgba(212,175,55,0.36)] active:scale-95"
+            className="flex w-full items-center justify-center gap-2 rounded-full bg-[#FF6B35] py-2.5 text-sm font-semibold text-white shadow-[0_6px_20px_rgba(255,107,53,0.28)] hover:shadow-[0_10px_28px_rgba(255,107,53,0.28)] active:scale-95"
           >
             <CalendarCheck className="h-4 w-4" />
             Reserve table
@@ -258,17 +258,17 @@ export function BaymaxChat({ userLocation, locationStatus }: BaymaxChatProps) {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 16, scale: 0.96 }}
               transition={{ type: "spring", stiffness: 260, damping: 24 }}
-              className="w-[min(420px,calc(100vw-1.5rem))] overflow-hidden rounded-4xl border border-[#E8E4DC] bg-white shadow-[0_24px_80px_rgb(0,0,0,0.1)]"
+              className="w-[min(420px,calc(100vw-1.5rem))] overflow-hidden rounded-4xl border border-gray-200 bg-white shadow-[0_24px_80px_rgb(0,0,0,0.1)]"
             >
               {/* Header ──────────────────────────────────────────────────── */}
-              <div className="flex items-center justify-between border-b border-[#E8E4DC] px-5 py-4">
+              <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#F9F6F0] text-[#D4AF37]">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-50 text-orange-500">
                     <Bot className="h-5 w-5" />
                   </div>
                   <div>
-                    <p className="font-semibold text-[#1A1A1A]">Baymax</p>
-                    <p className="text-xs text-[#5C5C5C]">
+                    <p className="font-semibold text-slate-900">Baymax</p>
+                    <p className="text-xs text-slate-500">
                       {locationStatus === "ready" ? "Location-aware · AI Concierge" : "AI Dining Concierge"}
                     </p>
                   </div>
@@ -276,7 +276,7 @@ export function BaymaxChat({ userLocation, locationStatus }: BaymaxChatProps) {
                 <button
                   type="button"
                   onClick={() => setIsOpen(false)}
-                  className="flex h-10 w-10 items-center justify-center rounded-full border border-[#E8E4DC] bg-[#FAFAFA] text-[#5C5C5C] hover:bg-[#F9F6F0] active:scale-95"
+                  className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-gray-50 text-slate-500 hover:bg-gray-50 active:scale-95"
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -304,8 +304,8 @@ export function BaymaxChat({ userLocation, locationStatus }: BaymaxChatProps) {
                               className={cn(
                                 "max-w-[85%] rounded-3xl px-4 py-3 text-sm leading-6",
                                 message.role === "user"
-                                  ? "bg-[#FBF8EE] text-[#1A1A1A] border border-[#D4AF37]/30 shadow-[0_2px_8px_rgba(212,175,55,0.1)]"
-                                  : "bg-[#F9F6F0] text-[#1A1A1A] shadow-[0_2px_8px_rgb(0,0,0,0.04)]",
+                                  ? "bg-orange-50 text-slate-900 border border-orange-200 shadow-[0_2px_8px_rgba(255,107,53,0.28)]"
+                                  : "bg-gray-50 text-slate-900 shadow-[0_2px_8px_rgb(0,0,0,0.04)]",
                               )}
                             >
                               {part.text}
@@ -369,11 +369,11 @@ export function BaymaxChat({ userLocation, locationStatus }: BaymaxChatProps) {
                       exit={{ opacity: 0, y: 10 }}
                       className="flex justify-start"
                     >
-                      <div className="flex items-center gap-1 rounded-full bg-[#F9F6F0] px-4 py-3 text-[#5C5C5C] shadow-[0_4px_12px_rgb(0,0,0,0.06)]">
+                      <div className="flex items-center gap-1 rounded-full bg-gray-50 px-4 py-3 text-slate-500 shadow-[0_4px_12px_rgb(0,0,0,0.06)]">
                         {[0, 1, 2].map((dot) => (
                           <motion.span
                             key={dot}
-                            className="h-2 w-2 rounded-full bg-[#D4AF37]/60"
+                            className="h-2 w-2 rounded-full bg-[#FF6B35]/60"
                             animate={{ y: [0, -5, 0] }}
                             transition={{
                               duration: 0.8,
@@ -389,33 +389,33 @@ export function BaymaxChat({ userLocation, locationStatus }: BaymaxChatProps) {
               </div>
 
               {/* Input ───────────────────────────────────────────────────── */}
-              <div className="border-t border-[#E8E4DC] px-5 py-4">
+              <div className="border-t border-gray-200 px-5 py-4">
                 <div className="mb-3 flex flex-wrap gap-2">
                   {quickPrompts.map((prompt) => (
                     <button
                       key={prompt}
                       type="button"
                       onClick={() => void submitMessage(prompt)}
-                      className="rounded-full border border-[#E8E4DC] bg-[#F9F6F0] px-3 py-2 text-xs text-[#5C5C5C] hover:border-[#D4AF37]/40 hover:text-[#1A1A1A] active:scale-95"
+                      className="rounded-full border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-slate-500 hover:border-orange-200 hover:text-slate-900 active:scale-95"
                     >
                       {prompt}
                     </button>
                   ))}
                 </div>
                 <form onSubmit={(e) => void handleSubmit(e)} className="flex items-center gap-3">
-                  <div className="flex flex-1 items-center gap-3 rounded-full border border-[#E8E4DC] bg-[#FAFAFA] px-4 py-3 focus-within:border-[#D4AF37]/50">
-                    <Sparkles className="h-4 w-4 text-[#D4AF37]" />
+                  <div className="flex flex-1 items-center gap-3 rounded-full border border-gray-200 bg-gray-50 px-4 py-3 focus-within:border-orange-300">
+                    <Sparkles className="h-4 w-4 text-orange-500" />
                     <input
                       value={input}
                       onChange={(e) => setInput(e.target.value)}
                       placeholder="Ask Baymax for a perfect table…"
-                      className="w-full bg-transparent text-sm text-[#1A1A1A] outline-none placeholder:text-[#5C5C5C]/60"
+                      className="w-full bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-500/60"
                     />
                   </div>
                   <button
                     type="submit"
                     disabled={!input.trim() || isThinking}
-                    className="flex h-12 w-12 items-center justify-center rounded-full bg-[#D4AF37] text-white shadow-[0_8px_24px_rgba(212,175,55,0.3)] hover:shadow-[0_12px_32px_rgba(212,175,55,0.38)] active:scale-95 disabled:opacity-50"
+                    className="flex h-12 w-12 items-center justify-center rounded-full bg-[#FF6B35] text-white shadow-[0_8px_24px_rgba(255,107,53,0.28)] hover:shadow-[0_12px_32px_rgba(255,107,53,0.28)] active:scale-95 disabled:opacity-50"
                   >
                     <SendHorizonal className="h-4 w-4" />
                   </button>
@@ -431,14 +431,14 @@ export function BaymaxChat({ userLocation, locationStatus }: BaymaxChatProps) {
           onClick={() => setIsOpen((current) => !current)}
           whileTap={{ scale: 0.95 }}
           whileHover={{ scale: 1.05 }}
-          className="relative flex h-16 w-16 items-center justify-center rounded-full bg-[#D4AF37] text-white shadow-[0_16px_50px_rgba(212,175,55,0.35)] transition-all"
+          className="relative flex h-16 w-16 items-center justify-center rounded-full bg-[#FF6B35] text-white shadow-[0_16px_50px_rgba(255,107,53,0.28)] transition-all"
         >
           <motion.span 
-            className="absolute inset-0 rounded-full bg-[#D4AF37]/30 blur-2xl"
+            className="absolute inset-0 rounded-full bg-[#FF6B35]/30 blur-2xl"
             animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0.7, 0.5] }}
             transition={{ duration: 3, repeat: Number.POSITIVE_INFINITY }}
           />
-          <span className="absolute -inset-1.5 rounded-full border border-[#D4AF37]/25" />
+          <span className="absolute -inset-1.5 rounded-full border border-[#FF6B35]/25" />
           <Bot className="relative z-10 h-6 w-6" />
         </motion.button>
       </div>

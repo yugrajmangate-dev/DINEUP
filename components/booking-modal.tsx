@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
@@ -39,7 +39,6 @@ function buildReservationDates(): ReservationDate[] {
     const date = new Date();
     date.setHours(0, 0, 0, 0);
     date.setDate(date.getDate() + offset);
-
     return {
       key: date.toISOString().slice(0, 10),
       label: new Intl.DateTimeFormat("en-IN", {
@@ -47,19 +46,12 @@ function buildReservationDates(): ReservationDate[] {
         day: "numeric",
         month: "short",
       }).format(date),
-      shortLabel: new Intl.DateTimeFormat("en-IN", {
-        day: "numeric",
-      }).format(date),
+      shortLabel: new Intl.DateTimeFormat("en-IN", { day: "numeric" }).format(date),
     };
   });
 }
 
-export function BookingModal({
-  restaurant,
-  distanceLabel,
-  isOpen,
-  onClose,
-}: BookingModalProps) {
+export function BookingModal({ restaurant, distanceLabel, isOpen, onClose }: BookingModalProps) {
   return (
     <AnimatePresence>
       {isOpen && restaurant ? (
@@ -94,33 +86,22 @@ function BookingModalPanel({
 
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        onClose();
-      }
+      if (event.key === "Escape") onClose();
     };
-
     window.addEventListener("keydown", handleEscape);
-
     return () => {
       window.removeEventListener("keydown", handleEscape);
-      if (closeRef.current) {
-        window.clearTimeout(closeRef.current);
-      }
+      if (closeRef.current) window.clearTimeout(closeRef.current);
     };
   }, [onClose]);
 
   const confirmReservation = async () => {
-    if (!selectedTime || isSubmitting || isConfirmed) {
-      return;
-    }
-
-    // Require authentication before reserving.
+    if (!selectedTime || isSubmitting || isConfirmed) return;
     if (!user) {
       onClose();
       openAuthModal();
       return;
     }
-
     setIsSubmitting(true);
     try {
       await addDoc(collection(db, "bookings"), {
@@ -137,133 +118,135 @@ function BookingModalPanel({
     } catch {
       // Non-fatal — still show confirmation UX even if Firestore is unconfigured.
     }
-
     setIsSubmitting(false);
     setIsConfirmed(true);
-    closeRef.current = window.setTimeout(onClose, 1200);
+    closeRef.current = window.setTimeout(onClose, 1400);
   };
 
   return (
     <motion.div
-      className="fixed inset-0 z-70 flex items-center justify-center bg-black/80 px-4 py-8 backdrop-blur-sm"
+      className="fixed inset-0 z-70 flex items-center justify-center bg-slate-900/60 px-4 py-8 backdrop-blur-sm"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       onClick={(event) => {
-        if (event.target === event.currentTarget) {
-          onClose();
-        }
+        if (event.target === event.currentTarget) onClose();
       }}
     >
       <motion.div
-        initial={{ opacity: 0, scale: 0.94, y: 24 }}
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.96, y: 18 }}
-        transition={{ type: "spring", stiffness: 220, damping: 24 }}
-        className="glass-panel relative w-full max-w-3xl overflow-hidden rounded-[36px] border border-white/10"
+        exit={{ opacity: 0, scale: 0.97, y: 12 }}
+        transition={{ type: "spring", stiffness: 240, damping: 26 }}
+        className="relative w-full max-w-3xl overflow-hidden rounded-[28px] border border-gray-200 bg-white shadow-2xl"
       >
-        <div className="absolute right-4 top-4">
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex h-11 w-11 items-center justify-center rounded-full border border-white/8 bg-white/5 text-zinc-300 hover:bg-white/10 active:scale-95"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
+        {/* ── Close button ─────────────────────────────────────────────────── */}
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute right-4 top-4 z-10 flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-gray-100 text-slate-500 hover:bg-gray-200 active:scale-95"
+        >
+          <X className="h-4 w-4" />
+        </button>
 
-        <div className="border-b border-white/8 px-6 py-6 sm:px-8">
+        {/* ── Header ───────────────────────────────────────────────────────── */}
+        <div className="border-b border-gray-100 px-6 py-6 sm:px-8">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <p className="text-xs uppercase tracking-[0.28em] text-zinc-500">
-                Reservation flow
+              <p className="text-[10px] uppercase tracking-[0.28em] text-slate-400">
+                Reservation
               </p>
-              <h3 className="mt-3 font-display text-4xl text-white">{restaurant.name}</h3>
-              <p className="mt-2 max-w-xl text-sm leading-6 text-zinc-400">
+              <h3 className="mt-2 font-display text-3xl leading-tight text-slate-900">
+                {restaurant.name}
+              </h3>
+              <p className="mt-1.5 max-w-xl text-sm leading-relaxed text-slate-500">
                 {restaurant.address}
               </p>
             </div>
-            <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-right backdrop-blur-md">
-              <div className="flex items-center justify-end gap-1 text-white">
-                <Star className="h-4 w-4 fill-accent text-accent" />
-                <span className="text-sm font-semibold">{restaurant.rating.toFixed(1)}</span>
+            <div className="flex-shrink-0 rounded-2xl border border-orange-200 bg-orange-50 px-4 py-3 text-right">
+              <div className="flex items-center justify-end gap-1.5">
+                <Star className="h-4 w-4 fill-orange-500 text-orange-500" />
+                <span className="text-sm font-semibold text-slate-900">{restaurant.rating.toFixed(1)}</span>
               </div>
-              <p className="mt-1 text-xs text-zinc-400">
-                {distanceLabel ?? restaurant.distance}
-              </p>
+              <p className="mt-0.5 text-xs text-slate-500">{distanceLabel ?? restaurant.distance}</p>
             </div>
           </div>
 
-          <div className="mt-5 flex flex-wrap gap-3">
+          <div className="mt-4 flex flex-wrap gap-2.5">
             <a
               href={`tel:${restaurant.phone.replace(/\s+/g, "")}`}
-              className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-zinc-300 hover:border-accent/30 hover:bg-accent/10 hover:text-white active:scale-95"
+              className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-4 py-2 text-sm text-slate-600 hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600 active:scale-95"
             >
-              <Phone className="h-4 w-4 text-accent" />
+              <Phone className="h-3.5 w-3.5" />
               {restaurant.phone}
             </a>
             <a
               href={restaurant.website}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-zinc-300 hover:border-accent/30 hover:bg-accent/10 hover:text-white active:scale-95"
+              className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-4 py-2 text-sm text-slate-600 hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600 active:scale-95"
             >
-              <Globe className="h-4 w-4 text-accent" />
+              <Globe className="h-3.5 w-3.5" />
               Visit website
             </a>
-            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-zinc-300">
-              <MapPin className="h-4 w-4 text-accent" />
+            <div className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-4 py-2 text-sm text-slate-500">
+              <MapPin className="h-3.5 w-3.5 text-orange-500" />
               {restaurant.neighborhood}
             </div>
           </div>
         </div>
 
-        <div className="grid gap-6 px-6 py-6 sm:px-8 lg:grid-cols-[0.8fr_1.2fr]">
-          <div className="space-y-6">
-            <div className="rounded-[28px] border border-white/8 bg-white/5 p-5">
-              <p className="text-sm uppercase tracking-[0.24em] text-zinc-500">Party size</p>
-              <div className="mt-5 flex items-center justify-between rounded-full border border-white/10 bg-black/35 px-3 py-3">
+        {/* ── Body ─────────────────────────────────────────────────────────── */}
+        <div className="grid gap-5 px-6 py-6 sm:px-8 lg:grid-cols-[0.8fr_1.2fr]">
+
+          {/* Left column */}
+          <div className="space-y-4">
+            {/* Party size */}
+            <div className="rounded-2xl border border-gray-200 bg-gray-50 p-5">
+              <p className="text-[10px] uppercase tracking-[0.24em] text-slate-400">Party size</p>
+              <div className="mt-4 flex items-center justify-between gap-3">
                 <button
                   type="button"
-                  onClick={() => setPartySize((value) => Math.max(1, value - 1))}
-                  className="flex h-11 w-11 items-center justify-center rounded-full border border-white/8 bg-white/5 text-zinc-200 hover:bg-white/10 active:scale-95"
+                  onClick={() => setPartySize((v) => Math.max(1, v - 1))}
+                  className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-300 bg-white text-slate-700 shadow-sm hover:bg-gray-100 active:scale-95"
                 >
                   <Minus className="h-4 w-4" />
                 </button>
                 <div className="text-center">
-                  <p className="font-display text-4xl text-white">{partySize}</p>
-                  <p className="text-xs uppercase tracking-[0.24em] text-zinc-500">guests</p>
+                  <p className="font-display text-4xl text-slate-900">{partySize}</p>
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-slate-400">guests</p>
                 </div>
                 <button
                   type="button"
-                  onClick={() => setPartySize((value) => Math.min(12, value + 1))}
-                  className="flex h-11 w-11 items-center justify-center rounded-full border border-white/8 bg-white/5 text-zinc-200 hover:bg-white/10 active:scale-95"
+                  onClick={() => setPartySize((v) => Math.min(12, v + 1))}
+                  className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-300 bg-white text-slate-700 shadow-sm hover:bg-gray-100 active:scale-95"
                 >
                   <Plus className="h-4 w-4" />
                 </button>
               </div>
             </div>
 
-            <div className="rounded-[28px] border border-white/8 bg-white/5 p-5">
-              <p className="text-sm uppercase tracking-[0.24em] text-zinc-500">At a glance</p>
-              <div className="mt-4 space-y-3 text-sm text-zinc-300">
+            {/* At a Glance */}
+            <div className="rounded-2xl border border-gray-200 bg-gray-50 p-5">
+              <p className="text-[10px] uppercase tracking-[0.24em] text-slate-400">At a glance</p>
+              <div className="mt-4 space-y-3 text-sm">
                 <div className="flex items-start gap-3">
-                  <CalendarDays className="mt-0.5 h-4 w-4 text-accent" />
+                  <CalendarDays className="mt-0.5 h-4 w-4 shrink-0 text-orange-500" />
                   <div>
-                    <p className="font-medium text-white">Operating hours</p>
-                    <p className="text-zinc-400">
+                    <p className="font-medium text-slate-800">Operating hours</p>
+                    <p className="text-slate-500">
                       {restaurant.operating_hours[0].day}: {restaurant.operating_hours[0].hours}
                     </p>
-                    <p className="text-zinc-500">
+                    <p className="text-slate-400">
                       {restaurant.operating_hours[1].day}: {restaurant.operating_hours[1].hours}
                     </p>
                   </div>
                 </div>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-1.5 pt-1">
                   {restaurant.dietary_tags.map((tag) => (
                     <span
                       key={tag}
-                      className="rounded-full border border-white/10 bg-black/35 px-3 py-1 text-xs text-zinc-300"
+                      className="rounded-full border border-gray-200 bg-white px-3 py-1 text-xs text-slate-500"
                     >
                       {tag}
                     </span>
@@ -273,44 +256,53 @@ function BookingModalPanel({
             </div>
           </div>
 
-          <div className="space-y-6">
-            <div className="rounded-[28px] border border-white/8 bg-white/5 p-5">
-              <p className="text-sm uppercase tracking-[0.24em] text-zinc-500">Choose a date</p>
-              <div className="mt-4 flex gap-3 overflow-x-auto pb-2">
+          {/* Right column */}
+          <div className="space-y-4">
+            {/* Date picker */}
+            <div className="rounded-2xl border border-gray-200 bg-gray-50 p-5">
+              <p className="text-[10px] uppercase tracking-[0.24em] text-slate-400">Choose a date</p>
+              <div className="mt-4 flex gap-2.5 overflow-x-auto pb-1">
                 {reservationDates.map((date) => (
                   <button
                     key={date.key}
                     type="button"
                     onClick={() => setSelectedDate(date.key)}
                     className={cn(
-                      "min-w-24 rounded-[22px] border px-4 py-4 text-left transition-all duration-300 ease-out active:scale-95",
+                      "min-w-[5.5rem] flex-shrink-0 rounded-xl border px-3 py-3.5 text-left transition-all active:scale-95",
                       selectedDate === date.key
-                        ? "border-accent/50 bg-accent/10 text-white"
-                        : "border-white/8 bg-black/30 text-zinc-400 hover:border-white/15 hover:bg-white/5 hover:text-white",
+                        ? "border-orange-400 bg-orange-50 shadow-sm"
+                        : "border-gray-200 bg-white text-slate-500 hover:border-orange-200 hover:text-slate-700",
                     )}
                   >
-                    <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">
+                    <p className={cn("text-[10px] uppercase tracking-[0.18em]",
+                      selectedDate === date.key ? "text-orange-500" : "text-slate-400"
+                    )}>
                       {date.shortLabel}
                     </p>
-                    <p className="mt-2 text-sm font-medium">{date.label}</p>
+                    <p className={cn("mt-1.5 text-xs font-medium",
+                      selectedDate === date.key ? "text-slate-900" : "text-slate-600"
+                    )}>
+                      {date.label}
+                    </p>
                   </button>
                 ))}
               </div>
             </div>
 
-            <div className="rounded-[28px] border border-white/8 bg-white/5 p-5">
-              <p className="text-sm uppercase tracking-[0.24em] text-zinc-500">Choose a time</p>
-              <div className="mt-4 flex flex-wrap gap-3">
+            {/* Time slots */}
+            <div className="rounded-2xl border border-gray-200 bg-gray-50 p-5">
+              <p className="text-[10px] uppercase tracking-[0.24em] text-slate-400">Choose a time</p>
+              <div className="mt-4 flex flex-wrap gap-2.5">
                 {restaurant.reservationSlots.map((slot) => (
                   <button
                     key={slot}
                     type="button"
                     onClick={() => setSelectedTime(slot)}
                     className={cn(
-                      "rounded-full border px-4 py-2.5 text-sm transition-all duration-300 ease-out active:scale-95",
+                      "rounded-full border px-4 py-2 text-sm font-medium transition-all active:scale-95",
                       selectedTime === slot
-                        ? "border-accent/50 bg-accent text-black"
-                        : "border-white/8 bg-black/35 text-zinc-300 hover:border-white/15 hover:bg-white/5 hover:text-white",
+                        ? "border-[#FF6B35] bg-[#FF6B35] text-white shadow-[0_4px_14px_rgba(255,107,53,0.3)]"
+                        : "border-gray-200 bg-white text-slate-600 hover:border-orange-300 hover:text-slate-800",
                     )}
                   >
                     {slot}
@@ -319,15 +311,16 @@ function BookingModalPanel({
               </div>
             </div>
 
+            {/* Confirm CTA */}
             <motion.button
               type="button"
               onClick={() => void confirmReservation()}
               disabled={!selectedTime || isSubmitting || isConfirmed}
               className={cn(
-                "flex h-14 w-full items-center justify-center overflow-hidden rounded-full px-6 text-sm font-semibold shadow-[0_16px_40px_rgba(255,107,107,0.22)] transition-all duration-300 ease-out active:scale-95",
+                "flex h-13 w-full items-center justify-center overflow-hidden rounded-full px-6 text-sm font-semibold text-white transition-all duration-300 active:scale-95 disabled:opacity-60",
                 isConfirmed
-                  ? "bg-emerald-500 text-black"
-                  : "bg-accent text-black hover:shadow-[0_22px_50px_rgba(255,107,107,0.3)]",
+                  ? "bg-emerald-500 shadow-[0_8px_24px_rgba(16,185,129,0.28)]"
+                  : "bg-[#FF6B35] shadow-[0_8px_24px_rgba(255,107,53,0.28)] hover:shadow-[0_14px_36px_rgba(255,107,53,0.38)]",
               )}
               whileTap={{ scale: 0.98 }}
             >
@@ -335,41 +328,25 @@ function BookingModalPanel({
                 {isConfirmed ? (
                   <motion.span
                     key="confirmed"
-                    initial={{ opacity: 0, scale: 0.8 }}
+                    initial={{ opacity: 0, scale: 0.85 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.8 }}
+                    exit={{ opacity: 0 }}
                     className="inline-flex items-center gap-2"
                   >
                     <Check className="h-4 w-4" />
-                    Reservation confirmed
+                    Reservation confirmed!
                   </motion.span>
                 ) : isSubmitting ? (
-                  <motion.span
-                    key="submitting"
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -8 }}
-                  >
+                  <motion.span key="submitting" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
                     Securing your table…
                   </motion.span>
                 ) : !user ? (
-                  <motion.span
-                    key="auth"
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -8 }}
-                    className="inline-flex items-center gap-2"
-                  >
+                  <motion.span key="auth" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="inline-flex items-center gap-2">
                     <LogIn className="h-4 w-4" />
                     Sign in to reserve
                   </motion.span>
                 ) : (
-                  <motion.span
-                    key="idle"
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -8 }}
-                  >
+                  <motion.span key="idle" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
                     Confirm Reservation
                   </motion.span>
                 )}

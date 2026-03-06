@@ -142,7 +142,7 @@ export const restaurants: Restaurant[] = [
     image:
       "https://images.unsplash.com/photo-1514933651103-005eec06c04b?auto=format&fit=crop&w=1200&q=80",
     food_images: [
-      "https://images.unsplash.com/photo-1617196034183-421b4040ed20?auto=format&fit=crop&w=900&q=80",
+      "https://images.unsplash.com/photo-1569050467447-ce54b3bbc37d?auto=format&fit=crop&w=900&q=80",
       "https://images.unsplash.com/photo-1534482421-64566f976cfa?auto=format&fit=crop&w=900&q=80",
       "https://images.unsplash.com/photo-1482003297000-b7663a1673f1?auto=format&fit=crop&w=900&q=80",
       "https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=900&q=80",
