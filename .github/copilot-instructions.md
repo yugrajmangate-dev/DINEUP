@@ -1,0 +1,22 @@
+- [x] Verify that the copilot-instructions.md file in the .github directory is created.
+- [x] Clarify Project Requirements
+- [x] Scaffold the Project
+- [x] Customize the Project
+- [x] Install Required Extensions
+- [x] Compile the Project
+- [x] Create and Run Task
+- [x] Launch the Project
+- [x] Ensure Documentation is Complete
+
+## DineUp Workspace Notes
+- Framework: Next.js App Router with TypeScript.
+- Styling: Tailwind CSS 4 with `clsx` and `tailwind-merge` through `lib/utils.ts`.
+- Motion: Framer Motion powers card reveals, reservation modal transitions, pin motion, and Baymax interactions.
+- Mapping: `react-map-gl` + Mapbox GL with graceful fallback when `NEXT_PUBLIC_MAPBOX_TOKEN` is missing.
+- Geolocation: `hooks/use-geolocation.ts` drives live user positioning and proximity sorting around Pune.
+- AI: Baymax is an agentic AI assistant using Vercel AI SDK v5 `streamText` with server-side tools (`checkAvailability`, `initiateBooking`) defined in [app/api/chat/route.ts](app/api/chat/route.ts).
+- Auth: Firebase Authentication (Google OAuth + Email/Password) managed via a Zustand store in `store/auth-store.ts`. Global listener lives in `components/dineup-experience.tsx`.
+- Database: Cloud Firestore `bookings` collection holds confirmed reservations written by `components/booking-modal.tsx`.
+- Dashboard: Protected route at `app/dashboard/page.tsx` shows a bento-grid of user bookings with cancel-to-delete animation.
+- Primary entry points: [app/page.tsx](app/page.tsx), [components/restaurant-split-view.tsx](components/restaurant-split-view.tsx), [components/booking-modal.tsx](components/booking-modal.tsx), [components/baymax-chat.tsx](components/baymax-chat.tsx), and [app/dashboard/page.tsx](app/dashboard/page.tsx).
+- Run locally with `npm run dev` after copying `.env.example` to `.env.local` and setting `NEXT_PUBLIC_MAPBOX_TOKEN`, `OPENAI_API_KEY`, and the six `NEXT_PUBLIC_FIREBASE_*` variables.
