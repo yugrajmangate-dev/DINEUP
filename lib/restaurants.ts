@@ -15,6 +15,7 @@ export type Restaurant = {
   cuisine: string;
   description: string;
   image: string;
+  food_images: string[];
   coordinates: [number, number];
   rating: number;
   distance: string;
@@ -41,6 +42,12 @@ export const restaurants: Restaurant[] = [
       "A softly lit rooftop for charcoal-kissed vegetables, fermented small plates, and zero-proof tasting pairings.",
     image:
       "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=1200&q=80",
+    food_images: [
+      "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=900&q=80",
+      "https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?auto=format&fit=crop&w=900&q=80",
+      "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?auto=format&fit=crop&w=900&q=80",
+      "https://images.unsplash.com/photo-1473093295043-cdd812d0e601?auto=format&fit=crop&w=900&q=80",
+    ],
     coordinates: [73.9026, 18.5362],
     rating: 4.9,
     distance: "1.4 km away",
@@ -68,6 +75,12 @@ export const restaurants: Restaurant[] = [
       "Dry-aged signatures, embered breads, and a moody dining room that feels equal parts supper club and gallery.",
     image:
       "https://images.unsplash.com/photo-1552566626-52f8b828add9?auto=format&fit=crop&w=1200&q=80",
+    food_images: [
+      "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=900&q=80",
+      "https://images.unsplash.com/photo-1555939594-58d7cb561ad1?auto=format&fit=crop&w=900&q=80",
+      "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=900&q=80",
+      "https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?auto=format&fit=crop&w=900&q=80",
+    ],
     coordinates: [73.9051, 18.5498],
     rating: 4.8,
     distance: "2.6 km away",
@@ -95,6 +108,12 @@ export const restaurants: Restaurant[] = [
       "A daylight-filled cafe with matcha clouds, laminated pastries, and smart plug-in corners for long brunches.",
     image:
       "https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?auto=format&fit=crop&w=1200&q=80",
+    food_images: [
+      "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=900&q=80",
+      "https://images.unsplash.com/photo-1558961363-fa8fdf82db35?auto=format&fit=crop&w=900&q=80",
+      "https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=900&q=80",
+      "https://images.unsplash.com/photo-1464349095431-e9a21285b5f3?auto=format&fit=crop&w=900&q=80",
+    ],
     coordinates: [73.7885, 18.5598],
     rating: 4.7,
     distance: "6.9 km away",
@@ -122,6 +141,12 @@ export const restaurants: Restaurant[] = [
       "An intimate izakaya with hand rolls, smoky robata skewers, and a low-fi soundtrack under sculpted light.",
     image:
       "https://images.unsplash.com/photo-1514933651103-005eec06c04b?auto=format&fit=crop&w=1200&q=80",
+    food_images: [
+      "https://images.unsplash.com/photo-1617196034183-421b4040ed20?auto=format&fit=crop&w=900&q=80",
+      "https://images.unsplash.com/photo-1534482421-64566f976cfa?auto=format&fit=crop&w=900&q=80",
+      "https://images.unsplash.com/photo-1482003297000-b7663a1673f1?auto=format&fit=crop&w=900&q=80",
+      "https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=900&q=80",
+    ],
     coordinates: [73.8517, 18.5318],
     rating: 4.9,
     distance: "2.1 km away",
@@ -149,6 +174,12 @@ export const restaurants: Restaurant[] = [
       "Whitewashed arches, herb-led plates, and an open courtyard designed for lingering over shared mezze.",
     image:
       "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?auto=format&fit=crop&w=1200&q=80",
+    food_images: [
+      "https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=900&q=80",
+      "https://images.unsplash.com/photo-1529782351533-2d06e5d29c95?auto=format&fit=crop&w=900&q=80",
+      "https://images.unsplash.com/photo-1505253716362-afaea1d3d1af?auto=format&fit=crop&w=900&q=80",
+      "https://images.unsplash.com/photo-1498837167922-ddd27525d352?auto=format&fit=crop&w=900&q=80",
+    ],
     coordinates: [73.8396, 18.5169],
     rating: 4.6,
     distance: "3.0 km away",
@@ -176,6 +207,12 @@ export const restaurants: Restaurant[] = [
       "A reservation-only room with immersive plating, tactile tableware, and a soundtrack choreographed to each course.",
     image:
       "https://images.unsplash.com/photo-1559329007-40df8a9345d8?auto=format&fit=crop&w=1200&q=80",
+    food_images: [
+      "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?auto=format&fit=crop&w=900&q=80",
+      "https://images.unsplash.com/photo-1551218808-94e220e084d2?auto=format&fit=crop&w=900&q=80",
+      "https://images.unsplash.com/photo-1504754524776-8f4f37790ca0?auto=format&fit=crop&w=900&q=80",
+      "https://images.unsplash.com/photo-1476224203421-9ac39bcb3df1?auto=format&fit=crop&w=900&q=80",
+    ],
     coordinates: [73.9163, 18.5672],
     rating: 5.0,
     distance: "5.2 km away",

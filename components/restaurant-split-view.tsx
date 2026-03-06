@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -13,12 +13,17 @@ import Map, {
 import {
   ArrowUpRight,
   CalendarDays,
+  ChevronLeft,
+  ChevronRight,
   Coffee,
   Leaf,
   LocateFixed,
   MapPinned,
+  Moon,
   Sparkles,
   Star,
+  Trees,
+  UtensilsCrossed,
 } from "lucide-react";
 
 import { BookingModal } from "@/components/booking-modal";
@@ -28,27 +33,58 @@ import type { GeolocationStatus } from "@/hooks/use-geolocation";
 import type { Restaurant, RestaurantIcon } from "@/lib/restaurants";
 import { cn } from "@/lib/utils";
 
+// ─── Icon map ─────────────────────────────────────────────────────────────────
+
 const iconMap: Record<RestaurantIcon, typeof Leaf> = {
   leaf: Leaf,
   coffee: Coffee,
   sparkles: Sparkles,
 };
 
+// ─── Animation variants ───────────────────────────────────────────────────────
+
 const containerVariants: Variants = {
-  hidden: { opacity: 0, y: 24 },
+  hidden: { opacity: 0, y: 16 },
   show: {
     opacity: 1,
     y: 0,
-    transition: {
-      staggerChildren: 0.08,
-    },
+    transition: { staggerChildren: 0.07 },
   },
 };
 
 const cardVariants: Variants = {
-  hidden: { opacity: 0, y: 18 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.45 } },
+  hidden: { opacity: 0, y: 14 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.4 } },
 };
+
+// ─── Filter definitions ───────────────────────────────────────────────────────
+
+type FilterId = "all" | "fine-dining" | "pure-veg" | "cafe" | "nightlife" | "outdoor";
+
+const FILTERS: { id: FilterId; label: string; Icon: typeof Leaf }[] = [
+  { id: "all",         label: "All",          Icon: UtensilsCrossed },
+  { id: "fine-dining", label: "Fine Dining",  Icon: Star            },
+  { id: "pure-veg",    label: "Pure Veg",     Icon: Leaf            },
+  { id: "cafe",        label: "Cafe",         Icon: Coffee          },
+  { id: "nightlife",   label: "Nightlife",    Icon: Moon            },
+  { id: "outdoor",     label: "Outdoor",      Icon: Trees           },
+];
+
+function matchesFilter(restaurant: Restaurant, filter: FilterId): boolean {
+  if (filter === "all") return true;
+  const t = [...restaurant.tags, ...restaurant.dietary_tags].map((s) => s.toLowerCase());
+  const id = restaurant.id;
+  switch (filter) {
+    case "fine-dining": return id === "atlas-room" || id === "cinder-house" || t.includes("tasting menu");
+    case "pure-veg":    return t.includes("pure veg") || t.includes("vegetarian-friendly");
+    case "cafe":        return id === "moss-cafe" || t.includes("cafe");
+    case "nightlife":   return t.includes("late seating") || t.includes("late night") || id === "sora-izakaya";
+    case "outdoor":     return t.includes("outdoor seating") || id === "olive-court";
+    default:            return true;
+  }
+}
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 type RestaurantWithDistance = {
   restaurant: Restaurant;
@@ -64,6 +100,8 @@ type RestaurantSplitViewProps = {
   onRequestLocation: () => void;
 };
 
+// ─── Root component ───────────────────────────────────────────────────────────
+
 export function RestaurantSplitView({
   restaurants,
   userLocation,
@@ -74,57 +112,49 @@ export function RestaurantSplitView({
   const [activeRestaurantId, setActiveRestaurantId] = useState(restaurants[0]?.id);
   const [bookingRestaurantId, setBookingRestaurantId] = useState<string | null>(null);
   const [selectionMode, setSelectionMode] = useState<"auto" | "manual">("auto");
+  const [activeFilter, setActiveFilter] = useState<FilterId>("all");
 
   const restaurantsWithDistance = useMemo<RestaurantWithDistance[]>(() => {
-    const mappedRestaurants = restaurants.map((restaurant) => {
+    const mapped = restaurants.map((restaurant) => {
       const distanceKm = userLocation
         ? calculateDistanceKm(userLocation, {
             latitude: restaurant.coordinates[1],
             longitude: restaurant.coordinates[0],
           })
         : null;
-
       return {
         restaurant,
         distanceKm,
-        distanceLabel:
-          distanceKm !== null ? formatDistanceLabel(distanceKm) : restaurant.distance,
+        distanceLabel: distanceKm !== null ? formatDistanceLabel(distanceKm) : restaurant.distance,
       };
     });
 
-    return mappedRestaurants.sort((left, right) => {
-      if (left.distanceKm === null && right.distanceKm === null) {
-        return restaurants.findIndex((restaurant) => restaurant.id === left.restaurant.id) -
-          restaurants.findIndex((restaurant) => restaurant.id === right.restaurant.id);
+    return mapped.sort((a, b) => {
+      if (a.distanceKm === null && b.distanceKm === null) {
+        return (
+          restaurants.findIndex((r) => r.id === a.restaurant.id) -
+          restaurants.findIndex((r) => r.id === b.restaurant.id)
+        );
       }
-
-      if (left.distanceKm === null) {
-        return 1;
-      }
-
-      if (right.distanceKm === null) {
-        return -1;
-      }
-
-      return left.distanceKm - right.distanceKm;
+      if (a.distanceKm === null) return 1;
+      if (b.distanceKm === null) return -1;
+      return a.distanceKm - b.distanceKm;
     });
   }, [restaurants, userLocation]);
 
-  const activeRestaurant = useMemo(() => {
-    if (selectionMode === "auto") {
-      return restaurantsWithDistance[0];
-    }
+  const filteredRestaurants = useMemo(
+    () => restaurantsWithDistance.filter(({ restaurant }) => matchesFilter(restaurant, activeFilter)),
+    [restaurantsWithDistance, activeFilter],
+  );
 
-    return (
-      restaurantsWithDistance.find(
-        ({ restaurant }) => restaurant.id === activeRestaurantId,
-      ) ?? restaurantsWithDistance[0]
-    );
-  }, [activeRestaurantId, restaurantsWithDistance, selectionMode]);
+  const activeRestaurant = useMemo(() => {
+    const list = filteredRestaurants.length ? filteredRestaurants : restaurantsWithDistance;
+    if (selectionMode === "auto") return list[0];
+    return list.find(({ restaurant }) => restaurant.id === activeRestaurantId) ?? list[0];
+  }, [activeRestaurantId, filteredRestaurants, restaurantsWithDistance, selectionMode]);
 
   const bookingRestaurant = useMemo(
-    () =>
-      restaurants.find((restaurant) => restaurant.id === bookingRestaurantId) ?? null,
+    () => restaurants.find((r) => r.id === bookingRestaurantId) ?? null,
     [bookingRestaurantId, restaurants],
   );
 
@@ -135,63 +165,88 @@ export function RestaurantSplitView({
 
   return (
     <>
+      {/* ── Filter bar ─────────────────────────────────────────────────────── */}
+      <div className="mb-5 -mx-1 overflow-x-auto px-1 pb-1">
+        <div className="flex items-center gap-2 w-max">
+          {FILTERS.map(({ id, label, Icon }) => {
+            const isActive = id === activeFilter;
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setActiveFilter(id)}
+                className={cn(
+                  "inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-medium transition-all active:scale-95 whitespace-nowrap",
+                  isActive
+                    ? "bg-[#F9F6F0] text-[#D4AF37] border border-[#D4AF37] shadow-[0_2px_10px_rgba(212,175,55,0.12)]"
+                    : "border border-[#E8E4DC] text-[#5C5C5C] bg-white hover:border-[#D4AF37]/40 hover:text-[#1A1A1A]",
+                )}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ── Split layout ───────────────────────────────────────────────────── */}
       <section className="grid gap-6 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.38fr)]">
-        <div className="glass-panel rounded-4xl border p-4 sm:p-5">
-          <div className="flex flex-col gap-4 border-b border-white/8 px-2 pb-4">
+        {/* Card panel */}
+        <div className="glass-panel rounded-4xl p-4 sm:p-5">
+          <div className="flex flex-col gap-3 border-b border-[#E8E4DC] px-1 pb-4">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-xs uppercase tracking-[0.24em] text-zinc-500">
-                  Interactive feed
-                </p>
-                <h2 className="mt-1 font-display text-2xl tracking-wide text-white">
-                  Curated List
-                </h2>
+                <p className="text-[10px] uppercase tracking-[0.24em] text-[#5C5C5C]">Interactive feed</p>
+                <h2 className="mt-0.5 font-display text-2xl tracking-wide text-[#1A1A1A]">Curated List</h2>
               </div>
-              <div className="hidden items-center gap-2 rounded-full border border-white/8 bg-white/5 px-4 py-2 text-sm text-zinc-400 sm:flex">
+              <div className="hidden items-center gap-2 rounded-full border border-[#E8E4DC] bg-[#F9F6F0] px-4 py-2 text-sm text-[#5C5C5C] sm:flex">
                 <MapPinned className="h-4 w-4 text-accent" />
-                Hover a card to animate its live pin.
+                Hover a card to move the pin.
               </div>
             </div>
-
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={onRequestLocation}
-                className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-zinc-300 hover:border-accent/30 hover:bg-accent/10 hover:text-white active:scale-95"
+                className="inline-flex items-center gap-2 rounded-full border border-[#E8E4DC] bg-[#F9F6F0] px-4 py-2 text-sm text-[#1A1A1A] hover:border-accent/40 hover:bg-[#FBF8EE] active:scale-95"
               >
                 <LocateFixed className="h-4 w-4 text-accent" />
                 {locationStatus === "ready" ? "Location synced" : "Use my location"}
               </button>
-
-              <div className="rounded-full border border-white/10 bg-black/30 px-4 py-2 text-sm text-zinc-400">
+              <div className="rounded-full border border-[#E8E4DC] bg-white px-4 py-2 text-sm text-[#5C5C5C]">
                 {locationStatus === "ready"
-                  ? "Sorted by live proximity around Pune."
+                  ? "Sorted by proximity."
                   : locationStatus === "requesting"
-                    ? "Requesting precise location..."
-                    : locationError ?? "Grant access to sort restaurants by distance."}
+                    ? "Requesting location…"
+                    : locationError ?? "Grant access to sort by distance."}
               </div>
             </div>
           </div>
 
-          <motion.div
-            className="mt-5 grid max-h-[calc(100vh-19rem)] gap-4 overflow-y-auto pr-1 xl:grid-cols-2"
-            variants={containerVariants}
-            initial="hidden"
-            animate="show"
-          >
-            {restaurantsWithDistance.map((entry) => (
-              <RestaurantCard
-                key={entry.restaurant.id}
-                restaurant={entry.restaurant}
-                distanceLabel={entry.distanceLabel}
-                isActive={entry.restaurant.id === activeRestaurant?.restaurant.id}
-                onHover={() => selectRestaurant(entry.restaurant.id)}
-                onBookNow={() => setBookingRestaurantId(entry.restaurant.id)}
-              />
-            ))}
-          </motion.div>
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeFilter}
+              className="mt-4 grid max-h-[calc(100vh-20rem)] gap-4 overflow-y-auto pr-1 xl:grid-cols-2"
+              variants={containerVariants}
+              initial="hidden"
+              animate="show"
+            >
+              {(filteredRestaurants.length ? filteredRestaurants : restaurantsWithDistance).map((entry) => (
+                <RestaurantCard
+                  key={entry.restaurant.id}
+                  restaurant={entry.restaurant}
+                  distanceLabel={entry.distanceLabel}
+                  isActive={entry.restaurant.id === activeRestaurant?.restaurant.id}
+                  onHover={() => selectRestaurant(entry.restaurant.id)}
+                  onBookNow={() => setBookingRestaurantId(entry.restaurant.id)}
+                />
+              ))}
+            </motion.div>
+          </AnimatePresence>
         </div>
 
+        {/* Map panel */}
         <MapPanel
           activeRestaurant={activeRestaurant}
           locationStatus={locationStatus}
@@ -206,9 +261,7 @@ export function RestaurantSplitView({
       <BookingModal
         restaurant={bookingRestaurant}
         distanceLabel={
-          restaurantsWithDistance.find(
-            ({ restaurant }) => restaurant.id === bookingRestaurant?.id,
-          )?.distanceLabel
+          restaurantsWithDistance.find(({ restaurant }) => restaurant.id === bookingRestaurant?.id)?.distanceLabel
         }
         isOpen={Boolean(bookingRestaurant)}
         onClose={() => setBookingRestaurantId(null)}
@@ -216,6 +269,8 @@ export function RestaurantSplitView({
     </>
   );
 }
+
+// ─── Restaurant Card with food image carousel ─────────────────────────────────
 
 type RestaurantCardProps = {
   restaurant: Restaurant;
@@ -225,15 +280,13 @@ type RestaurantCardProps = {
   onBookNow: () => void;
 };
 
-function RestaurantCard({
-  restaurant,
-  distanceLabel,
-  isActive,
-  onHover,
-  onBookNow,
-}: RestaurantCardProps) {
+function RestaurantCard({ restaurant, distanceLabel, isActive, onHover, onBookNow }: RestaurantCardProps) {
   const Icon = iconMap[restaurant.icon];
-  const [imageReady, setImageReady] = useState(false);
+  const [currentImg, setCurrentImg] = useState(0);
+  const images = restaurant.food_images?.length ? restaurant.food_images : [restaurant.image];
+
+  const prev = () => setCurrentImg((i) => (i - 1 + images.length) % images.length);
+  const next = () => setCurrentImg((i) => (i + 1) % images.length);
 
   return (
     <motion.article
@@ -241,84 +294,142 @@ function RestaurantCard({
       onHoverStart={onHover}
       onFocusCapture={onHover}
       className={cn(
-        "group relative overflow-hidden rounded-[28px] border border-white/5 bg-[#121212]/90 transition-all duration-500 ease-out hover:border-accent/30 hover:shadow-[0_20px_60px_rgba(255,107,107,0.15)]",
+        "group relative overflow-hidden rounded-3xl border bg-white transition-all duration-400 ease-out",
+        "shadow-[0_8px_30px_rgb(0,0,0,0.04)]",
+        "hover:shadow-[0_16px_48px_rgb(0,0,0,0.08)]",
         restaurant.layout === "wide" && "xl:col-span-2",
-        restaurant.layout === "tall" && "min-h-[22rem]",
-        isActive && "border-accent/40 shadow-[0_24px_70px_rgba(255,107,107,0.1)]",
+        isActive
+          ? "border-[#D4AF37]/40"
+          : "border-[#E8E4DC] hover:border-[#D4AF37]/30",
       )}
-      whileHover={{ y: -8, scale: 1.01 }}
+      whileHover={{ y: -5, scale: 1.005 }}
+      transition={{ type: "spring", stiffness: 300, damping: 28 }}
     >
-      <div className="relative min-h-80">
-        {!imageReady && <div className="shimmer absolute inset-0 z-10" />}
-        <Image
-          src={restaurant.image}
-          alt={restaurant.name}
-          fill
-          className="object-cover transition-all duration-500 ease-out group-hover:scale-[1.04]"
-          sizes="(min-width: 1280px) 25vw, (min-width: 1024px) 35vw, 100vw"
-          onLoad={() => setImageReady(true)}
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
+      {/* ── Food image carousel ─────────────────────────────────────────── */}
+      <div className="relative h-52 overflow-hidden">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={currentImg}
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.3 }}
+            className="absolute inset-0"
+          >
+            <Image
+              src={images[currentImg]}
+              alt={`${restaurant.name} dish ${currentImg + 1}`}
+              fill
+              className="object-cover"
+              sizes="(min-width: 1280px) 22vw, (min-width: 1024px) 32vw, 90vw"
+            />
+          </motion.div>
+        </AnimatePresence>
 
-        <div className="absolute left-5 right-5 top-5 z-20 flex flex-wrap items-center gap-2">
-          <span className="rounded-full border border-white/10 bg-black/40 px-3 py-1.5 text-xs font-medium text-white backdrop-blur-md">
-            {distanceLabel}
-          </span>
+        {/* Distance badge */}
+        <div className="absolute left-3 top-3 z-10 rounded-full border border-white/60 bg-white/80 px-3 py-1 text-[10px] font-medium text-[#1A1A1A] backdrop-blur-sm">
+          {distanceLabel}
         </div>
 
-        <div className="absolute bottom-0 left-0 right-0 z-20 p-6">
-          <div className="flex items-start justify-between gap-4">
-            <div className="space-y-2">
-              <div className="inline-flex items-center gap-2 rounded-full bg-accent/20 px-3 py-1 text-[10px] uppercase tracking-[0.2em] text-accent backdrop-blur-md">
-                <Icon className="h-3 w-3" />
-                {restaurant.cuisine}
-              </div>
-              <div>
-                <h3 className="font-display text-3xl leading-tight text-white">{restaurant.name}</h3>
-                <p className="mt-0.5 text-sm text-zinc-300">{restaurant.neighborhood}</p>
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-white/10 bg-black/40 px-3 py-2 text-right backdrop-blur-md">
-              <div className="flex items-center gap-1 text-white">
-                <Star className="h-4 w-4 fill-accent text-accent" />
-                <span className="text-sm font-semibold">{restaurant.rating.toFixed(1)}</span>
-              </div>
-              <p className="mt-1 text-[10px] uppercase tracking-wider text-zinc-400">{restaurant.price}</p>
-            </div>
-          </div>
-
-          <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex flex-wrap gap-2">
-              {restaurant.dietary_tags.slice(0, 2).map((tag) => (
-                <span
-                  key={tag}
-                  className="rounded-full border border-white/5 bg-white/5 px-2.5 py-1 text-[10px] uppercase tracking-wider text-zinc-400"
-                >
-                  {tag}
-                </span>
+        {/* Carousel controls — only visible on hover */}
+        {images.length > 1 && (
+          <>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); prev(); }}
+              className="absolute left-2 top-1/2 z-10 -translate-y-1/2 flex h-7 w-7 items-center justify-center rounded-full bg-white/80 text-[#1A1A1A] shadow-sm backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); next(); }}
+              className="absolute right-2 top-1/2 z-10 -translate-y-1/2 flex h-7 w-7 items-center justify-center rounded-full bg-white/80 text-[#1A1A1A] shadow-sm backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+            {/* Dot indicators */}
+            <div className="absolute bottom-2 left-0 right-0 z-10 flex justify-center gap-1">
+              {images.map((_, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setCurrentImg(i); }}
+                  className={cn(
+                    "h-1.5 rounded-full transition-all",
+                    i === currentImg ? "w-4 bg-white" : "w-1.5 bg-white/50",
+                  )}
+                />
               ))}
             </div>
+          </>
+        )}
+      </div>
 
-            <motion.button
-              type="button"
-              onClick={onBookNow}
-              className="inline-flex h-11 items-center justify-center gap-2 overflow-hidden rounded-full bg-accent px-5 text-sm font-semibold text-black shadow-[0_12px_32px_rgba(255,107,107,0.24)] active:scale-95"
-              animate={{ width: isActive ? 140 : 110 }}
-              transition={{ type: "spring", stiffness: 280, damping: 22 }}
-            >
-              Reserve
-              <ArrowUpRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-            </motion.button>
+      {/* ── Card body — info below image ────────────────────────────────── */}
+      <div className="p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 space-y-0.5">
+            <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.22em] text-[#5C5C5C]">
+              <Icon className="h-3 w-3 text-accent shrink-0" />
+              {restaurant.cuisine}
+            </div>
+            <h3 className="font-display text-xl leading-tight text-[#1A1A1A] truncate">{restaurant.name}</h3>
+            <p className="text-[11px] text-[#5C5C5C]">{restaurant.neighborhood}</p>
           </div>
+          <div className="shrink-0 text-right">
+            <div className="flex items-center justify-end gap-1">
+              <Star className="h-3.5 w-3.5 fill-[#D4AF37] text-[#D4AF37]" />
+              <span className="text-sm font-semibold text-[#1A1A1A]">{restaurant.rating.toFixed(1)}</span>
+            </div>
+            <p className="mt-0.5 text-[11px] text-[#5C5C5C]">{restaurant.price}</p>
+          </div>
+        </div>
+
+        {/* Dietary tags */}
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {restaurant.dietary_tags.slice(0, 2).map((tag) => (
+            <span
+              key={tag}
+              className="rounded-full border border-[#E8E4DC] bg-[#F9F6F0] px-2.5 py-0.5 text-[10px] text-[#5C5C5C]"
+            >
+              {tag}
+            </span>
+          ))}
+        </div>
+
+        {/* CTA */}
+        <div className="mt-4 flex items-center justify-between gap-3">
+          <div className="flex flex-wrap gap-1.5">
+            {restaurant.reservationSlots.slice(0, 2).map((slot) => (
+              <span
+                key={slot}
+                className="rounded-full border border-[#E8E4DC] bg-[#FAFAFA] px-2.5 py-1 text-[10px] text-[#5C5C5C]"
+              >
+                {slot}
+              </span>
+            ))}
+          </div>
+          <motion.button
+            type="button"
+            onClick={onBookNow}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-[#D4AF37] px-4 py-2 text-xs font-semibold text-white shadow-[0_4px_16px_rgba(212,175,55,0.28)] hover:shadow-[0_8px_24px_rgba(212,175,55,0.36)] active:scale-95"
+            animate={{ width: isActive ? 100 : 82 }}
+            transition={{ type: "spring", stiffness: 280, damping: 22 }}
+          >
+            Reserve
+            <ArrowUpRight className="h-3.5 w-3.5" />
+          </motion.button>
         </div>
       </div>
     </motion.article>
   );
 }
 
+// ─── Map panel ────────────────────────────────────────────────────────────────
+
 type MapPanelProps = {
-  activeRestaurant: RestaurantWithDistance;
+  activeRestaurant: RestaurantWithDistance | undefined;
   locationStatus: GeolocationStatus;
   onRequestLocation: () => void;
   restaurants: RestaurantWithDistance[];
@@ -340,9 +451,7 @@ function MapPanel({
   const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
 
   useEffect(() => {
-    if (!mapRef.current || !activeRestaurant) {
-      return;
-    }
+    if (!mapRef.current || !activeRestaurant) return;
 
     if (userLocation && selectionMode === "auto") {
       mapRef.current.flyTo({
@@ -350,7 +459,7 @@ function MapPanel({
         zoom: 13.8,
         duration: 1800,
         essential: true,
-        easing: (value) => value * value * (3 - 2 * value),
+        easing: (v) => v * v * (3 - 2 * v),
       });
       return;
     }
@@ -363,44 +472,41 @@ function MapPanel({
     });
   }, [activeRestaurant, selectionMode, userLocation]);
 
-  if (!token) {
+  // ── No-token fallback ──────────────────────────────────────────────────
+  if (!token || !activeRestaurant) {
     return (
-      <div className="glass-panel sticky top-24 flex min-h-180 flex-col overflow-hidden rounded-4xl border p-6">
+      <div className="glass-panel sticky top-24 flex min-h-[40rem] flex-col overflow-hidden rounded-4xl p-6">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <p className="text-sm uppercase tracking-[0.24em] text-zinc-500">Map preview</p>
-            <h3 className="mt-2 font-display text-3xl text-white">Connect Mapbox to go live</h3>
+            <p className="text-[10px] uppercase tracking-[0.24em] text-[#5C5C5C]">Map preview</p>
+            <h3 className="mt-1 font-display text-3xl text-[#1A1A1A]">Connect Mapbox to go live</h3>
           </div>
-          <div className="rounded-full border border-accent/20 bg-accent/10 px-4 py-2 text-xs uppercase tracking-[0.2em] text-accent">
+          <div className="rounded-full border border-[#D4AF37]/30 bg-[#F9F6F0] px-4 py-2 text-xs uppercase tracking-[0.2em] text-[#D4AF37]">
             Add NEXT_PUBLIC_MAPBOX_TOKEN
           </div>
         </div>
 
-        <div className="relative mt-6 flex-1 overflow-hidden rounded-[28px] border border-white/8 bg-[radial-gradient(circle_at_top,rgba(255,107,107,0.16),transparent_28%),linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.02))]">
-          <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-size-[72px_72px]" />
+        <div className="relative mt-6 flex-1 overflow-hidden rounded-3xl border border-[#E8E4DC] bg-[radial-gradient(circle_at_top,rgba(212,175,55,0.08),transparent_28%),#F9F6F0]">
+          <div className="absolute inset-0 bg-[linear-gradient(rgba(212,175,55,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(212,175,55,0.06)_1px,transparent_1px)] bg-[size:72px_72px]" />
           {restaurants.map(({ restaurant, distanceLabel }, index) => {
             const left = 18 + ((index * 13) % 60);
-            const top = 18 + ((index * 17) % 58);
+            const top  = 18 + ((index * 17) % 58);
             const Icon = iconMap[restaurant.icon];
-            const isActive = restaurant.id === activeRestaurant.restaurant.id;
+            const isActive = restaurant.id === activeRestaurant?.restaurant?.id;
 
             return (
               <motion.button
                 key={restaurant.id}
                 className={cn(
-                  "absolute rounded-full border px-3 py-2 text-left backdrop-blur-md",
+                  "absolute rounded-full border px-3 py-2 text-left backdrop-blur-md shadow-[0_4px_16px_rgb(0,0,0,0.06)]",
                   isActive
-                    ? "border-accent/40 bg-accent text-black"
-                    : "border-white/10 bg-black/40 text-white",
+                    ? "border-[#D4AF37] bg-[#D4AF37] text-white"
+                    : "border-[#E8E4DC] bg-white text-[#1A1A1A]",
                 )}
                 style={{ left: `${left}%`, top: `${top}%` }}
                 onMouseEnter={() => setActiveRestaurantId(restaurant.id)}
                 whileHover={{ y: -4, scale: 1.04 }}
-                animate={
-                  isActive
-                    ? { y: [0, -8, 0], scale: [1, 1.08, 1] }
-                    : { y: 0, scale: 1 }
-                }
+                animate={isActive ? { y: [0, -8, 0], scale: [1, 1.08, 1] } : { y: 0, scale: 1 }}
                 transition={{ repeat: isActive ? Number.POSITIVE_INFINITY : 0, duration: 1.6 }}
               >
                 <div className="flex items-center gap-2 text-xs font-semibold">
@@ -411,23 +517,25 @@ function MapPanel({
             );
           })}
 
-          <div className="absolute bottom-6 left-6 right-6 rounded-3xl border border-white/8 bg-black/55 p-5 backdrop-blur-xl">
-            <p className="text-xs uppercase tracking-[0.24em] text-zinc-500">Ready when you are</p>
+          <div className="absolute bottom-6 left-6 right-6 rounded-3xl border border-[#E8E4DC] bg-white/90 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.06)] backdrop-blur-xl">
+            <p className="text-[10px] uppercase tracking-[0.24em] text-[#5C5C5C]">Ready when you are</p>
             <div className="mt-3 flex flex-wrap items-end justify-between gap-4">
               <div>
-                <h4 className="font-display text-3xl text-white">{activeRestaurant.restaurant.name}</h4>
-                <p className="mt-1 text-sm text-zinc-400">{activeRestaurant.restaurant.neighborhood} · {activeRestaurant.restaurant.cuisine}</p>
+                <h4 className="font-display text-2xl text-[#1A1A1A]">{activeRestaurant!.restaurant.name}</h4>
+                <p className="mt-1 text-sm text-[#5C5C5C]">
+                  {activeRestaurant!.restaurant.neighborhood} · {activeRestaurant!.restaurant.cuisine}
+                </p>
               </div>
               {locationStatus === "ready" ? (
-                <div className="flex items-center gap-2 rounded-full border border-white/8 bg-white/5 px-4 py-2 text-sm text-zinc-300">
+                <div className="flex items-center gap-2 rounded-full border border-[#E8E4DC] bg-[#F9F6F0] px-4 py-2 text-sm text-[#5C5C5C]">
                   <LocateFixed className="h-4 w-4 text-accent" />
-                  Live distance sync is active.
+                  Live distance sync active.
                 </div>
               ) : (
                 <button
                   type="button"
                   onClick={onRequestLocation}
-                  className="flex items-center gap-2 rounded-full border border-white/8 bg-white/5 px-4 py-2 text-sm text-zinc-300 hover:border-accent/30 hover:bg-accent/10 hover:text-white active:scale-95"
+                  className="flex items-center gap-2 rounded-full border border-[#E8E4DC] bg-[#F9F6F0] px-4 py-2 text-sm text-[#1A1A1A] hover:border-accent/40 active:scale-95"
                 >
                   <CalendarDays className="h-4 w-4 text-accent" />
                   Enable proximity sorting.
@@ -440,9 +548,10 @@ function MapPanel({
     );
   }
 
+  // ── Live Mapbox map ────────────────────────────────────────────────────
   return (
-    <div className="glass-panel sticky top-24 min-h-180 overflow-hidden rounded-4xl border p-3">
-      <div className="relative h-[calc(100vh-8rem)] min-h-170 overflow-hidden rounded-[28px] border border-white/8">
+    <div className="glass-panel sticky top-24 min-h-[40rem] overflow-hidden rounded-4xl p-2">
+      <div className="relative h-[calc(100vh-8rem)] min-h-[38rem] overflow-hidden rounded-3xl border border-[#E8E4DC]">
         <Map
           ref={mapRef}
           reuseMaps
@@ -452,21 +561,17 @@ function MapPanel({
             zoom: 12.8,
           }}
           mapboxAccessToken={token}
-          mapStyle="mapbox://styles/mapbox/dark-v11"
+          mapStyle="mapbox://styles/mapbox/light-v11"
           attributionControl={false}
         >
           <NavigationControl position="top-right" showCompass={false} />
           <FullscreenControl position="top-right" />
 
           {userLocation && (
-            <Marker
-              longitude={userLocation.longitude}
-              latitude={userLocation.latitude}
-              anchor="center"
-            >
+            <Marker longitude={userLocation.longitude} latitude={userLocation.latitude} anchor="center">
               <div className="relative flex h-5 w-5 items-center justify-center">
-                <span className="absolute h-5 w-5 rounded-full bg-accent/30 animate-[pulse-ring_1.8s_ease-out_infinite]" />
-                <span className="relative h-3.5 w-3.5 rounded-full border border-white/50 bg-accent" />
+                <span className="absolute h-5 w-5 rounded-full bg-[#D4AF37]/30 animate-[pulse-ring_1.8s_ease-out_infinite]" />
+                <span className="relative h-3.5 w-3.5 rounded-full border-2 border-white bg-[#D4AF37] shadow-md" />
               </div>
             </Marker>
           )}
@@ -487,32 +592,21 @@ function MapPanel({
                   onMouseEnter={() => setActiveRestaurantId(restaurant.id)}
                   onClick={() => setActiveRestaurantId(restaurant.id)}
                   className="relative flex items-center justify-center"
-                  animate={
-                    isActive
-                      ? {
-                          scale: [1, 1.14, 1],
-                          y: [0, -9, 0],
-                        }
-                      : { scale: 1, y: 0 }
-                  }
-                  transition={{
-                    duration: 1.5,
-                    repeat: isActive ? Number.POSITIVE_INFINITY : 0,
-                    ease: "easeInOut",
-                  }}
+                  animate={isActive ? { scale: [1, 1.12, 1], y: [0, -7, 0] } : { scale: 1, y: 0 }}
+                  transition={{ duration: 1.5, repeat: isActive ? Number.POSITIVE_INFINITY : 0, ease: "easeInOut" }}
                 >
                   {isActive && (
-                    <span className="absolute h-12 w-12 rounded-full border border-accent/40 bg-accent/10 animate-[pulse-ring_1.5s_ease-out_infinite]" />
+                    <span className="absolute h-12 w-12 rounded-full border border-[#D4AF37]/40 bg-[#D4AF37]/10 animate-[pulse-ring_1.5s_ease-out_infinite]" />
                   )}
                   <span
                     className={cn(
-                      "relative flex min-w-14.5 items-center gap-2 rounded-full border px-3 py-2 text-sm font-semibold shadow-[0_16px_40px_rgba(0,0,0,0.35)]",
+                      "relative flex min-w-[58px] items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold shadow-[0_4px_16px_rgb(0,0,0,0.1)]",
                       isActive
-                        ? "border-accent/60 bg-accent text-black"
-                        : "border-white/10 bg-[#121212]/95 text-white",
+                        ? "border-[#D4AF37] bg-[#D4AF37] text-white"
+                        : "border-[#E8E4DC] bg-white text-[#1A1A1A]",
                     )}
                   >
-                    <Icon className="h-3.5 w-3.5" />
+                    <Icon className="h-3 w-3" />
                     {restaurant.rating.toFixed(1)}
                   </span>
                 </motion.button>
@@ -528,36 +622,31 @@ function MapPanel({
             closeOnClick={false}
             offset={24}
           >
-            <div className="w-70 overflow-hidden rounded-[20px] bg-[#121212]">
-              <div className="relative h-36 w-full">
+            <div className="w-[260px] overflow-hidden rounded-[18px] bg-white shadow-[0_16px_40px_rgb(0,0,0,0.1)]">
+              <div className="relative h-32 w-full">
                 <Image
-                  src={activeRestaurant.restaurant.image}
+                  src={activeRestaurant.restaurant.food_images?.[0] ?? activeRestaurant.restaurant.image}
                   alt={activeRestaurant.restaurant.name}
                   fill
                   className="object-cover"
-                  sizes="280px"
+                  sizes="260px"
                 />
-                <div className="absolute inset-0 bg-linear-to-t from-black via-black/20 to-transparent" />
               </div>
-              <div className="space-y-2 p-4">
-                <div className="flex items-start justify-between gap-3">
+              <div className="space-y-1.5 p-3.5">
+                <div className="flex items-start justify-between gap-2">
                   <div>
-                    <h4 className="font-display text-2xl text-white">{activeRestaurant.restaurant.name}</h4>
-                    <p className="text-sm text-zinc-400">{activeRestaurant.restaurant.neighborhood}</p>
+                    <h4 className="font-display text-lg text-[#1A1A1A]">{activeRestaurant.restaurant.name}</h4>
+                    <p className="text-xs text-[#5C5C5C]">{activeRestaurant.restaurant.neighborhood}</p>
                   </div>
-                  <span className="rounded-full bg-accent/15 px-3 py-1 text-xs font-semibold text-accent">
+                  <span className="shrink-0 rounded-full bg-[#F9F6F0] px-2.5 py-1 text-xs font-semibold text-[#D4AF37]">
                     {activeRestaurant.restaurant.rating.toFixed(1)}
                   </span>
                 </div>
-                <p className="text-sm leading-6 text-zinc-400">{activeRestaurant.restaurant.description}</p>
-                <p className="text-xs uppercase tracking-[0.22em] text-zinc-500">
-                  {activeRestaurant.distanceLabel}
-                </p>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-1.5 pt-1">
                   {activeRestaurant.restaurant.reservationSlots.map((slot) => (
                     <span
                       key={slot}
-                      className="rounded-full border border-white/8 bg-white/5 px-3 py-1 text-xs text-zinc-300"
+                      className="rounded-full border border-[#E8E4DC] bg-[#F9F6F0] px-2.5 py-0.5 text-[10px] text-[#5C5C5C]"
                     >
                       {slot}
                     </span>
@@ -568,33 +657,35 @@ function MapPanel({
           </Popup>
         </Map>
 
-        <div className="pointer-events-none absolute left-5 top-5 rounded-full border border-white/8 bg-black/40 px-4 py-2 text-sm text-zinc-300 backdrop-blur-md">
+        {/* Floating label */}
+        <div className="pointer-events-none absolute left-4 top-4 rounded-full border border-[#E8E4DC] bg-white/90 px-4 py-2 text-xs text-[#5C5C5C] shadow-[0_4px_16px_rgb(0,0,0,0.06)] backdrop-blur-md">
           {locationStatus === "ready"
-            ? "Live city map · Camera synced to your location"
-            : "Live city map · Hover cards to pulse pins"}
+            ? "Live map · Synced to your location"
+            : "Live map · Hover cards to move pins"}
         </div>
 
+        {/* Spotlighting card */}
         <AnimatePresence mode="wait">
           <motion.div
             key={activeRestaurant.restaurant.id}
-            initial={{ opacity: 0, y: 18 }}
+            initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 12 }}
-            className="pointer-events-none absolute bottom-5 left-5 right-5 rounded-[28px] border border-white/10 bg-black/45 p-5 backdrop-blur-xl"
+            exit={{ opacity: 0, y: 10 }}
+            className="pointer-events-none absolute bottom-4 left-4 right-4 rounded-3xl border border-[#E8E4DC] bg-white/90 p-4 shadow-[0_8px_30px_rgb(0,0,0,0.08)] backdrop-blur-xl"
           >
-            <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p className="text-xs uppercase tracking-[0.24em] text-zinc-500">Now spotlighting</p>
-                <h3 className="mt-2 font-display text-3xl text-white">{activeRestaurant.restaurant.name}</h3>
-                <p className="mt-1 text-sm text-zinc-400">
+                <p className="text-[10px] uppercase tracking-[0.24em] text-[#5C5C5C]">Now spotlighting</p>
+                <h3 className="mt-1 font-display text-2xl text-[#1A1A1A]">{activeRestaurant.restaurant.name}</h3>
+                <p className="mt-0.5 text-xs text-[#5C5C5C]">
                   {activeRestaurant.restaurant.cuisine} · {activeRestaurant.distanceLabel} · {activeRestaurant.restaurant.vibe}
                 </p>
               </div>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-1.5">
                 {activeRestaurant.restaurant.reservationSlots.map((slot) => (
                   <span
                     key={slot}
-                    className="rounded-full border border-white/8 bg-white/5 px-4 py-2 text-xs text-zinc-300"
+                    className="rounded-full border border-[#E8E4DC] bg-[#F9F6F0] px-3 py-1.5 text-[10px] text-[#5C5C5C]"
                   >
                     {slot}
                   </span>
