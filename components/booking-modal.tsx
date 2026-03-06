@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import { AnimatePresence, motion } from "framer-motion";
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 import {
@@ -13,6 +14,7 @@ import {
   Phone,
   Plus,
   Star,
+  Users,
   X,
 } from "lucide-react";
 
@@ -30,8 +32,8 @@ type BookingModalProps = {
 
 type ReservationDate = {
   key: string;
-  label: string;
-  shortLabel: string;
+  dayLabel: string;
+  dateLabel: string;
 };
 
 function buildReservationDates(): ReservationDate[] {
@@ -41,12 +43,8 @@ function buildReservationDates(): ReservationDate[] {
     date.setDate(date.getDate() + offset);
     return {
       key: date.toISOString().slice(0, 10),
-      label: new Intl.DateTimeFormat("en-IN", {
-        weekday: "short",
-        day: "numeric",
-        month: "short",
-      }).format(date),
-      shortLabel: new Intl.DateTimeFormat("en-IN", { day: "numeric" }).format(date),
+      dayLabel: new Intl.DateTimeFormat("en-IN", { weekday: "short" }).format(date),
+      dateLabel: new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short" }).format(date),
     };
   });
 }
@@ -56,7 +54,7 @@ export function BookingModal({ restaurant, distanceLabel, isOpen, onClose }: Boo
     <AnimatePresence>
       {isOpen && restaurant ? (
         <BookingModalPanel
-          key={`${restaurant.id}-${isOpen ? "open" : "closed"}`}
+          key={`${restaurant.id}-modal`}
           restaurant={restaurant}
           distanceLabel={distanceLabel}
           onClose={onClose}
@@ -85,23 +83,19 @@ function BookingModalPanel({
   const closeRef = useRef<number | null>(null);
 
   useEffect(() => {
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", handleEscape);
+    document.body.style.overflow = "hidden";
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", handler);
     return () => {
-      window.removeEventListener("keydown", handleEscape);
+      document.body.style.overflow = "";
+      window.removeEventListener("keydown", handler);
       if (closeRef.current) window.clearTimeout(closeRef.current);
     };
   }, [onClose]);
 
   const confirmReservation = async () => {
     if (!selectedTime || isSubmitting || isConfirmed) return;
-    if (!user) {
-      onClose();
-      openAuthModal();
-      return;
-    }
+    if (!user) { onClose(); openAuthModal(); return; }
     setIsSubmitting(true);
     try {
       await addDoc(collection(db, "bookings"), {
@@ -115,244 +109,222 @@ function BookingModalPanel({
         status: "confirmed",
         createdAt: serverTimestamp(),
       });
-    } catch {
-      // Non-fatal — still show confirmation UX even if Firestore is unconfigured.
-    }
+    } catch { /* non-fatal */ }
     setIsSubmitting(false);
     setIsConfirmed(true);
-    closeRef.current = window.setTimeout(onClose, 1400);
+    closeRef.current = window.setTimeout(onClose, 1600);
   };
+
+  const heroImage = restaurant.food_images?.[0] ?? restaurant.image;
 
   return (
     <motion.div
-      className="fixed inset-0 z-70 flex items-center justify-center bg-slate-900/60 px-4 py-8 backdrop-blur-sm"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      onClick={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
+      style={{ background: "rgba(10,10,20,0.72)", backdropFilter: "blur(12px)" }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        initial={{ opacity: 0, scale: 0.93, y: 30 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.97, y: 12 }}
-        transition={{ type: "spring", stiffness: 240, damping: 26 }}
-        className="relative w-full max-w-3xl overflow-hidden rounded-[28px] border border-gray-200 bg-white shadow-2xl"
+        exit={{ opacity: 0, scale: 0.96, y: 16 }}
+        transition={{ type: "spring", stiffness: 280, damping: 28 }}
+        className="relative w-full max-w-2xl overflow-hidden rounded-[32px] bg-white shadow-[0_32px_80px_rgba(0,0,0,0.28)]"
       >
-        {/* ── Close button ─────────────────────────────────────────────────── */}
-        <button
-          type="button"
-          onClick={onClose}
-          className="absolute right-4 top-4 z-10 flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-gray-100 text-slate-500 hover:bg-gray-200 active:scale-95"
-        >
-          <X className="h-4 w-4" />
-        </button>
+        {/* ── HERO IMAGE HEADER ──────────────────────────────────────────────── */}
+        <div className="relative h-52 w-full overflow-hidden">
+          <Image
+            src={heroImage}
+            alt={restaurant.name}
+            fill
+            className="object-cover"
+            sizes="672px"
+          />
+          {/* Deep gradient overlay so text is always readable */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
 
-        {/* ── Header ───────────────────────────────────────────────────────── */}
-        <div className="border-b border-gray-100 px-6 py-6 sm:px-8">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <p className="text-[10px] uppercase tracking-[0.28em] text-slate-400">
-                Reservation
-              </p>
-              <h3 className="mt-2 font-display text-3xl leading-tight text-slate-900">
-                {restaurant.name}
-              </h3>
-              <p className="mt-1.5 max-w-xl text-sm leading-relaxed text-slate-500">
-                {restaurant.address}
-              </p>
-            </div>
-            <div className="flex-shrink-0 rounded-2xl border border-orange-200 bg-orange-50 px-4 py-3 text-right">
-              <div className="flex items-center justify-end gap-1.5">
-                <Star className="h-4 w-4 fill-orange-500 text-orange-500" />
-                <span className="text-sm font-semibold text-slate-900">{restaurant.rating.toFixed(1)}</span>
-              </div>
-              <p className="mt-0.5 text-xs text-slate-500">{distanceLabel ?? restaurant.distance}</p>
-            </div>
-          </div>
+          {/* Close button — top right */}
+          <button
+            type="button"
+            onClick={onClose}
+            className="absolute right-4 top-4 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-sm hover:bg-black/60 active:scale-95 transition-all"
+          >
+            <X className="h-4 w-4" />
+          </button>
 
-          <div className="mt-4 flex flex-wrap gap-2.5">
-            <a
-              href={`tel:${restaurant.phone.replace(/\s+/g, "")}`}
-              className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-4 py-2 text-sm text-slate-600 hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600 active:scale-95"
-            >
-              <Phone className="h-3.5 w-3.5" />
-              {restaurant.phone}
-            </a>
-            <a
-              href={restaurant.website}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-4 py-2 text-sm text-slate-600 hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600 active:scale-95"
-            >
-              <Globe className="h-3.5 w-3.5" />
-              Visit website
-            </a>
-            <div className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-4 py-2 text-sm text-slate-500">
-              <MapPin className="h-3.5 w-3.5 text-orange-500" />
-              {restaurant.neighborhood}
+          {/* Restaurant info over image */}
+          <div className="absolute bottom-0 left-0 right-0 px-6 pb-5 pt-10">
+            <p className="text-[10px] uppercase tracking-[0.3em] text-white/60">Reserve your table</p>
+            <h2 className="mt-1 font-display text-3xl font-bold leading-tight text-white">
+              {restaurant.name}
+            </h2>
+            <div className="mt-2 flex flex-wrap items-center gap-3">
+              <span className="flex items-center gap-1 text-xs text-white/75">
+                <MapPin className="h-3 w-3" />{restaurant.neighborhood}
+              </span>
+              <span className="flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-1 text-xs font-semibold text-white backdrop-blur-sm">
+                <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+                {restaurant.rating.toFixed(1)}
+              </span>
+              <span className="text-xs text-white/60">{restaurant.price}</span>
+              <span className="text-xs text-white/60">{distanceLabel ?? restaurant.distance}</span>
             </div>
           </div>
         </div>
 
-        {/* ── Body ─────────────────────────────────────────────────────────── */}
-        <div className="grid gap-5 px-6 py-6 sm:px-8 lg:grid-cols-[0.8fr_1.2fr]">
+        {/* ── CONTACT PILLS ───────────────────────────────────────────────────── */}
+        <div className="flex flex-wrap gap-2 border-b border-gray-100 px-6 py-4">
+          <a
+            href={`tel:${restaurant.phone.replace(/\s+/g, "")}`}
+            className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-gray-50 px-3.5 py-1.5 text-xs font-medium text-slate-600 hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600 active:scale-95 transition-all"
+          >
+            <Phone className="h-3 w-3" />{restaurant.phone}
+          </a>
+          <a
+            href={restaurant.website}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-gray-50 px-3.5 py-1.5 text-xs font-medium text-slate-600 hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600 active:scale-95 transition-all"
+          >
+            <Globe className="h-3 w-3" />Visit website
+          </a>
+        </div>
 
-          {/* Left column */}
-          <div className="space-y-4">
-            {/* Party size */}
-            <div className="rounded-2xl border border-gray-200 bg-gray-50 p-5">
-              <p className="text-[10px] uppercase tracking-[0.24em] text-slate-400">Party size</p>
-              <div className="mt-4 flex items-center justify-between gap-3">
+        {/* ── BODY ────────────────────────────────────────────────────────────── */}
+        <div className="px-6 py-5 sm:px-7">
+
+          {/* DATE SELECTOR */}
+          <div className="mb-5">
+            <p className="mb-3 text-[10px] uppercase tracking-[0.28em] text-slate-400">Select date</p>
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {reservationDates.map((d) => {
+                const active = selectedDate === d.key;
+                return (
+                  <button
+                    key={d.key}
+                    type="button"
+                    onClick={() => setSelectedDate(d.key)}
+                    className={cn(
+                      "flex min-w-[4.5rem] flex-shrink-0 flex-col items-center rounded-2xl border px-3 py-3 transition-all active:scale-95",
+                      active
+                        ? "border-[#FF6B35] bg-[#FF6B35] shadow-[0_6px_20px_rgba(255,107,53,0.3)]"
+                        : "border-gray-200 bg-white hover:border-orange-200 hover:bg-orange-50",
+                    )}
+                  >
+                    <span className={cn("text-[10px] uppercase tracking-widest", active ? "text-white/75" : "text-slate-400")}>
+                      {d.dayLabel}
+                    </span>
+                    <span className={cn("mt-1 text-sm font-semibold", active ? "text-white" : "text-slate-800")}>
+                      {d.dateLabel}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* TWO COLUMN: Party Size + Time Slots */}
+          <div className="grid gap-5 sm:grid-cols-2">
+
+            {/* PARTY SIZE */}
+            <div>
+              <p className="mb-3 text-[10px] uppercase tracking-[0.28em] text-slate-400">
+                <Users className="mr-1 inline h-3 w-3" />Guests
+              </p>
+              <div className="flex items-center justify-between rounded-2xl border border-gray-200 bg-gray-50 p-3">
                 <button
                   type="button"
                   onClick={() => setPartySize((v) => Math.max(1, v - 1))}
-                  className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-300 bg-white text-slate-700 shadow-sm hover:bg-gray-100 active:scale-95"
+                  className="flex h-10 w-10 items-center justify-center rounded-xl border border-gray-300 bg-white text-slate-600 shadow-sm hover:bg-gray-100 active:scale-95"
                 >
-                  <Minus className="h-4 w-4" />
+                  <Minus className="h-3.5 w-3.5" />
                 </button>
                 <div className="text-center">
-                  <p className="font-display text-4xl text-slate-900">{partySize}</p>
-                  <p className="text-[10px] uppercase tracking-[0.2em] text-slate-400">guests</p>
+                  <p className="font-display text-3xl font-bold text-slate-900">{partySize}</p>
+                  <p className="text-[10px] text-slate-400">{partySize === 1 ? "guest" : "guests"}</p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setPartySize((v) => Math.min(12, v + 1))}
-                  className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-300 bg-white text-slate-700 shadow-sm hover:bg-gray-100 active:scale-95"
+                  className="flex h-10 w-10 items-center justify-center rounded-xl border border-gray-300 bg-white text-slate-600 shadow-sm hover:bg-gray-100 active:scale-95"
                 >
-                  <Plus className="h-4 w-4" />
+                  <Plus className="h-3.5 w-3.5" />
                 </button>
               </div>
+
+              {/* Dietary tags */}
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {restaurant.dietary_tags.map((tag) => (
+                  <span key={tag} className="rounded-full border border-gray-200 bg-white px-2.5 py-1 text-[10px] font-medium text-slate-500">
+                    {tag}
+                  </span>
+                ))}
+              </div>
             </div>
 
-            {/* At a Glance */}
-            <div className="rounded-2xl border border-gray-200 bg-gray-50 p-5">
-              <p className="text-[10px] uppercase tracking-[0.24em] text-slate-400">At a glance</p>
-              <div className="mt-4 space-y-3 text-sm">
-                <div className="flex items-start gap-3">
-                  <CalendarDays className="mt-0.5 h-4 w-4 shrink-0 text-orange-500" />
-                  <div>
-                    <p className="font-medium text-slate-800">Operating hours</p>
-                    <p className="text-slate-500">
-                      {restaurant.operating_hours[0].day}: {restaurant.operating_hours[0].hours}
-                    </p>
-                    <p className="text-slate-400">
-                      {restaurant.operating_hours[1].day}: {restaurant.operating_hours[1].hours}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  {restaurant.dietary_tags.map((tag) => (
-                    <span
-                      key={tag}
-                      className="rounded-full border border-gray-200 bg-white px-3 py-1 text-xs text-slate-500"
+            {/* TIME SLOTS */}
+            <div>
+              <p className="mb-3 text-[10px] uppercase tracking-[0.28em] text-slate-400">
+                <CalendarDays className="mr-1 inline h-3 w-3" />Time slot
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {restaurant.reservationSlots.map((slot) => {
+                  const active = selectedTime === slot;
+                  return (
+                    <button
+                      key={slot}
+                      type="button"
+                      onClick={() => setSelectedTime(slot)}
+                      className={cn(
+                        "rounded-xl border px-4 py-2.5 text-sm font-semibold transition-all active:scale-95",
+                        active
+                          ? "border-[#FF6B35] bg-[#FF6B35] text-white shadow-[0_4px_14px_rgba(255,107,53,0.32)]"
+                          : "border-gray-200 bg-white text-slate-700 hover:border-orange-200 hover:bg-orange-50",
+                      )}
                     >
-                      {tag}
-                    </span>
-                  ))}
-                </div>
+                      {slot}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>
 
-          {/* Right column */}
-          <div className="space-y-4">
-            {/* Date picker */}
-            <div className="rounded-2xl border border-gray-200 bg-gray-50 p-5">
-              <p className="text-[10px] uppercase tracking-[0.24em] text-slate-400">Choose a date</p>
-              <div className="mt-4 flex gap-2.5 overflow-x-auto pb-1">
-                {reservationDates.map((date) => (
-                  <button
-                    key={date.key}
-                    type="button"
-                    onClick={() => setSelectedDate(date.key)}
-                    className={cn(
-                      "min-w-[5.5rem] flex-shrink-0 rounded-xl border px-3 py-3.5 text-left transition-all active:scale-95",
-                      selectedDate === date.key
-                        ? "border-orange-400 bg-orange-50 shadow-sm"
-                        : "border-gray-200 bg-white text-slate-500 hover:border-orange-200 hover:text-slate-700",
-                    )}
-                  >
-                    <p className={cn("text-[10px] uppercase tracking-[0.18em]",
-                      selectedDate === date.key ? "text-orange-500" : "text-slate-400"
-                    )}>
-                      {date.shortLabel}
-                    </p>
-                    <p className={cn("mt-1.5 text-xs font-medium",
-                      selectedDate === date.key ? "text-slate-900" : "text-slate-600"
-                    )}>
-                      {date.label}
-                    </p>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Time slots */}
-            <div className="rounded-2xl border border-gray-200 bg-gray-50 p-5">
-              <p className="text-[10px] uppercase tracking-[0.24em] text-slate-400">Choose a time</p>
-              <div className="mt-4 flex flex-wrap gap-2.5">
-                {restaurant.reservationSlots.map((slot) => (
-                  <button
-                    key={slot}
-                    type="button"
-                    onClick={() => setSelectedTime(slot)}
-                    className={cn(
-                      "rounded-full border px-4 py-2 text-sm font-medium transition-all active:scale-95",
-                      selectedTime === slot
-                        ? "border-[#FF6B35] bg-[#FF6B35] text-white shadow-[0_4px_14px_rgba(255,107,53,0.3)]"
-                        : "border-gray-200 bg-white text-slate-600 hover:border-orange-300 hover:text-slate-800",
-                    )}
-                  >
-                    {slot}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Confirm CTA */}
-            <motion.button
-              type="button"
-              onClick={() => void confirmReservation()}
-              disabled={!selectedTime || isSubmitting || isConfirmed}
-              className={cn(
-                "flex h-13 w-full items-center justify-center overflow-hidden rounded-full px-6 text-sm font-semibold text-white transition-all duration-300 active:scale-95 disabled:opacity-60",
-                isConfirmed
-                  ? "bg-emerald-500 shadow-[0_8px_24px_rgba(16,185,129,0.28)]"
-                  : "bg-[#FF6B35] shadow-[0_8px_24px_rgba(255,107,53,0.28)] hover:shadow-[0_14px_36px_rgba(255,107,53,0.38)]",
+          {/* CONFIRM BUTTON */}
+          <motion.button
+            type="button"
+            onClick={() => void confirmReservation()}
+            disabled={!selectedTime || isSubmitting || isConfirmed}
+            className={cn(
+              "mt-6 flex h-14 w-full items-center justify-center gap-2 overflow-hidden rounded-2xl text-[15px] font-bold text-white transition-all duration-300 active:scale-[0.98] disabled:opacity-60",
+              isConfirmed
+                ? "bg-emerald-500 shadow-[0_8px_30px_rgba(16,185,129,0.35)]"
+                : "bg-[#FF6B35] shadow-[0_8px_30px_rgba(255,107,53,0.35)] hover:shadow-[0_14px_40px_rgba(255,107,53,0.45)]",
+            )}
+            whileTap={{ scale: 0.98 }}
+          >
+            <AnimatePresence mode="wait" initial={false}>
+              {isConfirmed ? (
+                <motion.span key="ok" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="flex items-center gap-2">
+                  <Check className="h-5 w-5" /> Reservation confirmed!
+                </motion.span>
+              ) : isSubmitting ? (
+                <motion.span key="wait" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
+                  Securing your table…
+                </motion.span>
+              ) : !user ? (
+                <motion.span key="auth" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="flex items-center gap-2">
+                  <LogIn className="h-5 w-5" /> Sign in to reserve
+                </motion.span>
+              ) : (
+                <motion.span key="idle" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
+                  Confirm Reservation
+                </motion.span>
               )}
-              whileTap={{ scale: 0.98 }}
-            >
-              <AnimatePresence mode="wait">
-                {isConfirmed ? (
-                  <motion.span
-                    key="confirmed"
-                    initial={{ opacity: 0, scale: 0.85 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="inline-flex items-center gap-2"
-                  >
-                    <Check className="h-4 w-4" />
-                    Reservation confirmed!
-                  </motion.span>
-                ) : isSubmitting ? (
-                  <motion.span key="submitting" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
-                    Securing your table…
-                  </motion.span>
-                ) : !user ? (
-                  <motion.span key="auth" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="inline-flex items-center gap-2">
-                    <LogIn className="h-4 w-4" />
-                    Sign in to reserve
-                  </motion.span>
-                ) : (
-                  <motion.span key="idle" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
-                    Confirm Reservation
-                  </motion.span>
-                )}
-              </AnimatePresence>
-            </motion.button>
-          </div>
+            </AnimatePresence>
+          </motion.button>
         </div>
       </motion.div>
     </motion.div>
