@@ -4,7 +4,6 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { collection, deleteDoc, doc, getDocs, orderBy, query, where } from "firebase/firestore";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  ArrowLeft,
   CalendarDays,
   Clock,
   Compass,
@@ -115,43 +114,8 @@ export default function DashboardPage() {
   const uniqueRestaurants = new Set(bookings.map((b) => b.restaurantId)).size;
 
   return (
-    <main className="min-h-screen bg-[#0a0a0a] px-4 pb-16 pt-4 sm:px-6 lg:px-8">
+    <main className="min-h-screen bg-[#0a0a0a] px-4 pb-16 pt-8 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-6xl space-y-8">
-
-        {/* ── Navigation ─────────────────────────────────────────────────── */}
-        <nav className="glass-panel sticky top-4 z-40 flex items-center justify-between gap-3 rounded-full px-4 py-3 sm:px-6">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-accent/15 text-accent shadow-[0_0_30px_rgba(255,107,107,0.25)]">
-              <Compass className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="font-display text-xl tracking-wide text-white">DineUp</p>
-              <p className="text-xs uppercase tracking-[0.3em] text-zinc-500">My Reservations</p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Link
-              href="/"
-              className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-zinc-300 transition-all hover:border-white/20 hover:bg-white/10 hover:text-white active:scale-95"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Explore
-            </Link>
-            <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-white/10 bg-accent/15 text-accent">
-              {user.photoURL ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={user.photoURL}
-                  alt={user.displayName ?? "Profile"}
-                  className="h-full w-full object-cover"
-                />
-              ) : (
-                <UserCircle className="h-5 w-5" />
-              )}
-            </div>
-          </div>
-        </nav>
 
         {/* ── Header ─────────────────────────────────────────────────────── */}
         <header className="space-y-2 px-1">

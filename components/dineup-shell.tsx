@@ -1,20 +1,11 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
-import { ArrowRight, Compass, LayoutDashboard, LogOut, Sparkles, UserCircle } from "lucide-react";
-import Link from "next/link";
+import { ArrowRight, Bot, ChefHat, Map, Sparkles } from "lucide-react";
 
 import type { Restaurant } from "@/lib/restaurants";
 import type { UserLocation } from "@/lib/geo";
 import type { GeolocationStatus } from "@/hooks/use-geolocation";
 import { RestaurantSplitView } from "@/components/restaurant-split-view";
-import { useAuthStore } from "@/store/auth-store";
-import { auth } from "@/lib/firebase";
-import { signOut } from "firebase/auth";
-
-const subscribe = () => () => {};
-const getSnapshot = () => true;
-const getServerSnapshot = () => false;
 
 type DineUpShellProps = {
   restaurants: Restaurant[];
@@ -24,6 +15,24 @@ type DineUpShellProps = {
   onRequestLocation: () => void;
 };
 
+const steps = [
+  {
+    icon: Map,
+    title: "Discover",
+    description: "Browse a curated map of the city's finest restaurants, sorted by proximity.",
+  },
+  {
+    icon: Bot,
+    title: "Ask Baymax",
+    description: "Our AI concierge matches your mood, diet, and budget to the perfect table.",
+  },
+  {
+    icon: ChefHat,
+    title: "Reserve",
+    description: "Book instantly with one tap. Your confirmation is immediate.",
+  },
+];
+
 export function DineUpShell({
   restaurants,
   userLocation,
@@ -31,123 +40,51 @@ export function DineUpShell({
   locationError,
   onRequestLocation,
 }: DineUpShellProps) {
-  const { user, status, openAuthModal } = useAuthStore();
-  const mounted = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
-
-  const handleSignOut = async () => {
-    if (!auth) return;
-    try {
-      await signOut(auth);
-    } catch {
-      // ignore sign-out errors
-    }
-  };
-
   return (
-    <main className="min-h-screen px-4 pb-10 pt-4 sm:px-6 lg:px-8">
-      <div className="mx-auto flex w-full max-w-400 flex-col gap-6">
-        <nav className="glass-panel sticky top-4 z-40 flex items-center justify-between gap-3 rounded-full px-4 py-3 sm:px-6">
-          {/* Brand ──────────────────────────────────────────────────────────── */}
-          <div className="flex shrink-0 items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-accent/15 text-accent shadow-[0_0_30px_rgba(255,107,107,0.25)]">
-              <Compass className="h-5 w-5" />
+    <main className="min-h-screen px-4 pb-10 pt-6 sm:px-6 lg:px-8">
+      <div className="mx-auto flex w-full max-w-[1800px] flex-col gap-8">
+        {/* ── Hero ───────────────────────────────────────────────── */}
+        <section className="relative overflow-hidden rounded-[2.5rem] border border-white/5 bg-gradient-to-br from-[#111]/90 via-[#0a0a0a] to-[#111]/90 px-8 py-20 sm:px-14 lg:px-20">
+          <div className="absolute -right-40 -top-40 h-96 w-96 rounded-full bg-accent/5 blur-[120px]" />
+          <div className="absolute -bottom-32 -left-32 h-80 w-80 rounded-full bg-accent/3 blur-[100px]" />
+          <div className="relative max-w-3xl space-y-6">
+            <div className="inline-flex items-center gap-2 rounded-full border border-accent/15 bg-accent/5 px-4 py-1.5 text-[11px] font-medium uppercase tracking-[0.25em] text-accent">
+              <Sparkles className="h-3 w-3" />
+              Curated Reservations
             </div>
-            <div>
-              <p className="font-display text-xl tracking-wide text-white">DineUp</p>
-              <p className="text-[10px] uppercase tracking-[0.3em] text-zinc-500">
-                Curated Dining
-              </p>
-            </div>
-          </div>
-
-          {/* Centre filter pills (desktop only) ─────────────────────────────── */}
-          <div className="hidden items-center gap-2 md:flex">
-            {["Culinary Arts", "Chef's Tables", "Late Night"].map((item) => (
-              <button
-                key={item}
-                className="rounded-full px-4 py-2 text-sm text-zinc-400 transition-all duration-300 ease-out hover:bg-white/5 hover:text-white active:scale-95"
-              >
-                {item}
-              </button>
-            ))}
-          </div>
-
-          {/* Auth controls ──────────────────────────────────────────────────── */}
-          <div className="flex shrink-0 items-center gap-2">
-            {!mounted || status === "loading" ? (
-              <div className="h-9 w-20 animate-pulse rounded-full bg-white/5" />
-            ) : status === "authenticated" && user ? (
-              <>
-                <Link
-                  href="/dashboard"
-                  className="hidden items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-zinc-300 transition-all duration-300 hover:border-accent/30 hover:bg-accent/10 hover:text-white active:scale-95 sm:flex"
-                >
-                  <LayoutDashboard className="h-4 w-4" />
-                  My bookings
-                </Link>
-                <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-white/10 bg-accent/15 text-accent">
-                  {user.photoURL ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={user.photoURL}
-                      alt={user.displayName ?? "Profile"}
-                      className="h-full w-full object-cover"
-                    />
-                  ) : (
-                    <UserCircle className="h-5 w-5" />
-                  )}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => void handleSignOut()}
-                  className="flex h-10 w-10 items-center justify-center rounded-full border border-white/8 bg-white/5 text-zinc-400 transition-all duration-300 hover:bg-white/10 hover:text-white active:scale-95"
-                  title="Sign out"
-                >
-                  <LogOut className="h-4 w-4" />
-                </button>
-              </>
-            ) : (
-              <button
-                type="button"
-                onClick={openAuthModal}
-                className="rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-black shadow-[0_8px_30px_rgba(255,107,107,0.24)] transition-all duration-300 hover:-translate-y-px hover:shadow-[0_14px_40px_rgba(255,107,107,0.3)] active:scale-95"
-              >
-                Sign In
-              </button>
-            )}
-          </div>
-        </nav>
-
-        <section className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.5fr)]">
-          <div className="glass-panel rounded-4xl border px-6 py-12 sm:px-10 lg:px-12">
-            <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
-              <div className="max-w-2xl space-y-6">
-                <div className="inline-flex items-center gap-2 rounded-full border border-accent/20 bg-accent/5 px-4 py-2 text-xs font-medium uppercase tracking-[0.25em] text-accent">
-                  <Sparkles className="h-3.5 w-3.5" />
-                  Select Reservations
-                </div>
-                <div className="space-y-4">
-                  <h1 className="font-display text-5xl leading-tight tracking-tight text-white sm:text-6xl lg:text-7xl">
-                    Dine brilliantly.
-                  </h1>
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-3 sm:flex-row">
-                <button
-                  onClick={() => {
-                     document.getElementById('explore-section')?.scrollIntoView({ behavior: 'smooth' });
-                  }}
-                  className="group inline-flex items-center justify-center gap-2 rounded-full bg-accent px-6 py-3.5 text-sm font-semibold text-black shadow-[0_12px_40px_rgba(255,107,107,0.24)] transition-all duration-300 ease-out hover:-translate-y-px hover:shadow-[0_18px_50px_rgba(255,107,107,0.3)] active:scale-95"
-                >
-                  Explore tables
-                  <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
-                </button>
-              </div>
-            </div>
+            <h1 className="font-display text-5xl leading-[1.1] tracking-tight text-white sm:text-6xl lg:text-7xl">
+              Dine brilliantly.
+            </h1>
+            <p className="max-w-lg text-base leading-relaxed text-zinc-400">
+              Discover design-forward restaurants. Let our AI concierge match you with the perfect table tonight.
+            </p>
+            <button
+              onClick={() => document.getElementById("explore-section")?.scrollIntoView({ behavior: "smooth" })}
+              className="group inline-flex items-center gap-2 rounded-full bg-accent px-7 py-3.5 text-sm font-semibold text-black transition-all hover:-translate-y-0.5 hover:shadow-[0_18px_50px_rgba(255,107,107,0.25)] active:scale-95"
+            >
+              Explore tables
+              <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+            </button>
           </div>
         </section>
 
+        {/* ── How It Works ──────────────────────────────────────── */}
+        <section id="how-it-works" className="grid gap-4 sm:grid-cols-3">
+          {steps.map((step) => (
+            <div
+              key={step.title}
+              className="group rounded-3xl border border-white/5 bg-[#111]/60 p-7 transition-all hover:border-white/10"
+            >
+              <div className="mb-5 flex h-11 w-11 items-center justify-center rounded-2xl bg-accent/10 text-accent transition-colors group-hover:bg-accent/15">
+                <step.icon className="h-5 w-5" />
+              </div>
+              <h3 className="font-display text-lg text-white">{step.title}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-zinc-500">{step.description}</p>
+            </div>
+          ))}
+        </section>
+
+        {/* ── Restaurant Feed + Map ─────────────────────────────── */}
         <section id="explore-section">
           <RestaurantSplitView
             restaurants={restaurants}

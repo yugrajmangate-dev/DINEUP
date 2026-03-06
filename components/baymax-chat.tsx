@@ -41,20 +41,15 @@ interface ToolResultPart {
 
 type MessagePart = { type: "text"; text: string } | ToolCallPart | ToolResultPart;
 
-// ─── Starter messages ─────────────────────────────────────────────────────────
+// ─── Starter message (display-only, never sent to the API) ─────────────────
 
-const starterMessages: UIMessage[] = [
-  {
-    id: "intro",
-    role: "assistant",
-    parts: [
-      {
-        type: "text",
-        text: "Hello. I am Baymax. Where are we dining tonight?",
-      },
-    ],
-  },
-];
+const STARTER_ID = "baymax-intro";
+
+const starterBubble: UIMessage = {
+  id: STARTER_ID,
+  role: "assistant",
+  parts: [{ type: "text", text: "Hello. I am Baymax — your personal dining concierge." }],
+};
 
 // ─── Sub-components for tool renders ─────────────────────────────────────────
 
@@ -215,9 +210,14 @@ export function BaymaxChat({ userLocation, locationStatus }: BaymaxChatProps) {
 
   const { error, messages, sendMessage, status } = useChat({
     transport,
-    messages: starterMessages,
     experimental_throttle: 40,
   });
+
+  // Merge the display-only starter bubble with real API messages
+  const allMessages = useMemo(
+    () => [starterBubble, ...messages],
+    [messages],
+  );
 
   const isThinking = status === "submitted" || status === "streaming";
 
@@ -227,7 +227,7 @@ export function BaymaxChat({ userLocation, locationStatus }: BaymaxChatProps) {
       top: scrollRef.current.scrollHeight,
       behavior: "smooth",
     });
-  }, [messages, isThinking]);
+  }, [allMessages, isThinking]);
 
   const submitMessage = async (value: string) => {
     const trimmed = value.trim();
@@ -263,18 +263,14 @@ export function BaymaxChat({ userLocation, locationStatus }: BaymaxChatProps) {
               {/* Header ──────────────────────────────────────────────────── */}
               <div className="flex items-center justify-between border-b border-white/8 px-5 py-4">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-full bg-accent/15 text-accent shadow-[0_0_28px_rgba(255,107,107,0.35)]">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent/15 text-accent">
                     <Bot className="h-5 w-5" />
                   </div>
                   <div>
                     <p className="font-semibold text-white">Baymax</p>
-                    <p className="text-sm text-zinc-400">AI Gastronomy Assistant · Tool-enabled</p>
-                    <div className="mt-1 inline-flex items-center gap-1 text-xs text-zinc-500">
-                      <MapPin className="h-3 w-3" />
-                      {locationStatus === "ready"
-                        ? "Location-aware recommendations enabled"
-                        : "Working from your preferences until location is shared"}
-                    </div>
+                    <p className="text-xs text-zinc-500">
+                      {locationStatus === "ready" ? "Location-aware · AI Concierge" : "AI Dining Concierge"}
+                    </p>
                   </div>
                 </div>
                 <button
@@ -291,7 +287,7 @@ export function BaymaxChat({ userLocation, locationStatus }: BaymaxChatProps) {
                 ref={scrollRef}
                 className="max-h-105 space-y-3 overflow-y-auto px-5 py-5"
               >
-                {messages.map((message) => (
+                {allMessages.map((message) => (
                   <div key={message.id} className="space-y-3">
                     {(message.parts as MessagePart[]).map((part, partIdx) => {
                       // Plain text bubble
