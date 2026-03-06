@@ -28,7 +28,7 @@ import {
 
 import { BookingModal } from "@/components/booking-modal";
 import type { UserLocation } from "@/lib/geo";
-import { calculateDistanceKm, formatDistanceLabel } from "@/lib/geo";
+import { calculateDistanceKm, formatDistanceLabel, PUNE_CENTER } from "@/lib/geo";
 import type { GeolocationStatus } from "@/hooks/use-geolocation";
 import type { Restaurant, RestaurantIcon } from "@/lib/restaurants";
 import { cn } from "@/lib/utils";
@@ -88,7 +88,7 @@ function matchesFilter(restaurant: Restaurant, filter: FilterId): boolean {
 
 type RestaurantWithDistance = {
   restaurant: Restaurant;
-  distanceKm: number | null;
+  distanceKm: number;
   distanceLabel: string;
 };
 
@@ -115,31 +115,24 @@ export function RestaurantSplitView({
   const [activeFilter, setActiveFilter] = useState<FilterId>("all");
 
   const restaurantsWithDistance = useMemo<RestaurantWithDistance[]>(() => {
+    // Use real GPS location if granted; fall back to central-Pune reference.
+    const reference = userLocation ?? PUNE_CENTER;
+    const estimated = !userLocation;
+
     const mapped = restaurants.map((restaurant) => {
-      const distanceKm = userLocation
-        ? calculateDistanceKm(userLocation, {
-            latitude: restaurant.coordinates[1],
-            longitude: restaurant.coordinates[0],
-          })
-        : null;
+      const distanceKm = calculateDistanceKm(reference, {
+        latitude: restaurant.coordinates[1],
+        longitude: restaurant.coordinates[0],
+      });
       return {
         restaurant,
         distanceKm,
-        distanceLabel: distanceKm !== null ? formatDistanceLabel(distanceKm) : restaurant.distance,
+        distanceLabel: formatDistanceLabel(distanceKm, estimated),
       };
     });
 
-    return mapped.sort((a, b) => {
-      if (a.distanceKm === null && b.distanceKm === null) {
-        return (
-          restaurants.findIndex((r) => r.id === a.restaurant.id) -
-          restaurants.findIndex((r) => r.id === b.restaurant.id)
-        );
-      }
-      if (a.distanceKm === null) return 1;
-      if (b.distanceKm === null) return -1;
-      return a.distanceKm - b.distanceKm;
-    });
+    // Always sort nearest-first (from real location or city-centre).
+    return mapped.sort((a, b) => a.distanceKm - b.distanceKm);
   }, [restaurants, userLocation]);
 
   const filteredRestaurants = useMemo(
@@ -174,7 +167,10 @@ export function RestaurantSplitView({
               <button
                 key={id}
                 type="button"
-                onClick={() => setActiveFilter(id)}
+                onClick={() => {
+                  setActiveFilter(id);
+                  setSelectionMode("auto"); // re-focus map on the new list's top item
+                }}
                 className={cn(
                   "inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-medium transition-all active:scale-95 whitespace-nowrap",
                   isActive
@@ -453,24 +449,16 @@ function MapPanel({
   useEffect(() => {
     if (!mapRef.current || !activeRestaurant) return;
 
-    if (userLocation && selectionMode === "auto") {
-      mapRef.current.flyTo({
-        center: [userLocation.longitude, userLocation.latitude],
-        zoom: 13.8,
-        duration: 1800,
-        essential: true,
-        easing: (v) => v * v * (3 - 2 * v),
-      });
-      return;
-    }
-
+    // Always fly to the selected restaurant (user-location marker is shown
+    // separately; centring on it would disconnect the map from the cards).
     mapRef.current.flyTo({
       center: activeRestaurant.restaurant.coordinates,
-      zoom: 13.3,
-      duration: 1200,
+      zoom: selectionMode === "manual" ? 14.2 : 13.0,
+      duration: 1400,
       essential: true,
+      easing: (v) => v * v * (3 - 2 * v),
     });
-  }, [activeRestaurant, selectionMode, userLocation]);
+  }, [activeRestaurant, selectionMode]);
 
   // ── No-token fallback ──────────────────────────────────────────────────
   if (!token || !activeRestaurant) {

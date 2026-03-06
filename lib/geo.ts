@@ -4,6 +4,14 @@ export type UserLocation = {
   accuracy: number;
 };
 
+/** FC Road / Deccan Gymkhana area — used as the reference when the user
+ *  hasn't granted location permission yet. */
+export const PUNE_CENTER: UserLocation = {
+  latitude: 18.5195,
+  longitude: 73.8397,
+  accuracy: 0,
+};
+
 const EARTH_RADIUS_KM = 6371;
 
 function toRadians(value: number) {
@@ -31,10 +39,11 @@ export function calculateDistanceKm(
   return EARTH_RADIUS_KM * angularDistance;
 }
 
-export function formatDistanceLabel(distanceKm: number) {
+export function formatDistanceLabel(distanceKm: number, estimated = false) {
+  const prefix = estimated ? "~" : "";
   if (distanceKm < 1) {
-    return `${Math.max(50, Math.round(distanceKm * 1000 / 50) * 50)} m away`;
+    return `${prefix}${Math.max(50, Math.round(distanceKm * 1000 / 50) * 50)} m away`;
   }
 
-  return `${distanceKm.toFixed(1)} km away`;
+  return `${prefix}${distanceKm.toFixed(1)} km away`;
 }
