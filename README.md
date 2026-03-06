@@ -46,8 +46,11 @@ DineUp is a premium, hyper-local restaurant discovery and reservation concept bu
 
 	Set the following in `.env.local`:
 	- `NEXT_PUBLIC_MAPBOX_TOKEN` — Mapbox public token (optional; without it the map renders a fallback)
-	- `OPENAI_API_KEY` — OpenAI API key for Baymax streaming + tool calling
-	- `OPENAI_MODEL` — model name (defaults to `gpt-4.1-mini`)
+	- `GROQ_API_KEY` — Groq API key for Baymax streaming + tool calling
+	- `GROQ_MODEL` — model name (defaults to `openai/gpt-oss-20b`)
+	- `NEXT_PUBLIC_FIREBASE_*` — Your Firebase configuration keys
+
+    *See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed setup and collaboration guidelines.*
 	- `NEXT_PUBLIC_FIREBASE_*` — six Firebase config values from Firebase Console → Project settings
 
 3. Start the development server:

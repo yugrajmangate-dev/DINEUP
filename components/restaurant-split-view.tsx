@@ -140,11 +140,11 @@ export function RestaurantSplitView({
           <div className="flex flex-col gap-4 border-b border-white/8 px-2 pb-4">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-sm uppercase tracking-[0.24em] text-zinc-500">
+                <p className="text-xs uppercase tracking-[0.24em] text-zinc-500">
                   Interactive feed
                 </p>
-                <h2 className="mt-2 font-display text-3xl text-white">
-                  The aesthetic list
+                <h2 className="mt-1 font-display text-2xl tracking-wide text-white">
+                  Curated List
                 </h2>
               </div>
               <div className="hidden items-center gap-2 rounded-full border border-white/8 bg-white/5 px-4 py-2 text-sm text-zinc-400 sm:flex">
@@ -241,12 +241,12 @@ function RestaurantCard({
       onHoverStart={onHover}
       onFocusCapture={onHover}
       className={cn(
-        "group relative overflow-hidden rounded-[28px] border bg-surface/90 transition-all duration-300 ease-out hover:border-accent/40 hover:shadow-[0_20px_60px_rgba(0,0,0,0.35)]",
+        "group relative overflow-hidden rounded-[28px] border border-white/5 bg-[#121212]/90 transition-all duration-500 ease-out hover:border-accent/30 hover:shadow-[0_20px_60px_rgba(255,107,107,0.15)]",
         restaurant.layout === "wide" && "xl:col-span-2",
-        restaurant.layout === "tall" && "min-h-105",
-        isActive && "border-accent/50 shadow-[0_24px_70px_rgba(255,107,107,0.12)]",
+        restaurant.layout === "tall" && "min-h-[22rem]",
+        isActive && "border-accent/40 shadow-[0_24px_70px_rgba(255,107,107,0.1)]",
       )}
-      whileHover={{ y: -4 }}
+      whileHover={{ y: -8, scale: 1.01 }}
     >
       <div className="relative min-h-80">
         {!imageReady && <div className="shimmer absolute inset-0 z-10" />}
@@ -258,49 +258,42 @@ function RestaurantCard({
           sizes="(min-width: 1280px) 25vw, (min-width: 1024px) 35vw, 100vw"
           onLoad={() => setImageReady(true)}
         />
-        <div className="absolute inset-0 bg-linear-to-t from-black via-black/30 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
 
-        <div className="absolute left-4 right-4 top-4 z-20 flex flex-wrap items-center gap-2">
-          <span className="rounded-full border border-white/10 bg-black/35 px-3 py-1 text-xs font-medium text-white backdrop-blur-md">
+        <div className="absolute left-5 right-5 top-5 z-20 flex flex-wrap items-center gap-2">
+          <span className="rounded-full border border-white/10 bg-black/40 px-3 py-1.5 text-xs font-medium text-white backdrop-blur-md">
             {distanceLabel}
-          </span>
-          <span className="rounded-full border border-white/10 bg-black/35 px-3 py-1 text-xs font-medium text-white backdrop-blur-md">
-            {restaurant.price}
-          </span>
-          <span className="rounded-full border border-white/10 bg-black/35 px-3 py-1 text-xs font-medium text-white backdrop-blur-md">
-            {restaurant.dietary_tags[0] ?? restaurant.tags[0]}
           </span>
         </div>
 
-        <div className="absolute bottom-0 left-0 right-0 z-20 p-5">
+        <div className="absolute bottom-0 left-0 right-0 z-20 p-6">
           <div className="flex items-start justify-between gap-4">
-            <div className="space-y-3">
-              <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs uppercase tracking-[0.2em] text-zinc-300 backdrop-blur-md">
-                <Icon className="h-3.5 w-3.5 text-accent" />
+            <div className="space-y-2">
+              <div className="inline-flex items-center gap-2 rounded-full bg-accent/20 px-3 py-1 text-[10px] uppercase tracking-[0.2em] text-accent backdrop-blur-md">
+                <Icon className="h-3 w-3" />
                 {restaurant.cuisine}
               </div>
               <div>
                 <h3 className="font-display text-3xl leading-tight text-white">{restaurant.name}</h3>
-                <p className="mt-1 text-sm text-zinc-300">{restaurant.neighborhood}</p>
+                <p className="mt-0.5 text-sm text-zinc-300">{restaurant.neighborhood}</p>
               </div>
-              <p className="max-w-xl text-sm leading-6 text-zinc-400">{restaurant.description}</p>
             </div>
 
-            <div className="rounded-2xl border border-white/10 bg-black/30 px-3 py-2 text-right backdrop-blur-md">
+            <div className="rounded-2xl border border-white/10 bg-black/40 px-3 py-2 text-right backdrop-blur-md">
               <div className="flex items-center gap-1 text-white">
                 <Star className="h-4 w-4 fill-accent text-accent" />
                 <span className="text-sm font-semibold">{restaurant.rating.toFixed(1)}</span>
               </div>
-              <p className="mt-1 text-xs text-zinc-400">{restaurant.vibe}</p>
+              <p className="mt-1 text-[10px] uppercase tracking-wider text-zinc-400">{restaurant.price}</p>
             </div>
           </div>
 
-          <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap gap-2">
-              {restaurant.tags.slice(1).map((tag) => (
+              {restaurant.dietary_tags.slice(0, 2).map((tag) => (
                 <span
                   key={tag}
-                  className="rounded-full border border-white/8 bg-white/5 px-3 py-1 text-xs text-zinc-400"
+                  className="rounded-full border border-white/5 bg-white/5 px-2.5 py-1 text-[10px] uppercase tracking-wider text-zinc-400"
                 >
                   {tag}
                 </span>
@@ -310,11 +303,11 @@ function RestaurantCard({
             <motion.button
               type="button"
               onClick={onBookNow}
-              className="inline-flex h-12 items-center justify-center gap-2 overflow-hidden rounded-full bg-accent px-5 text-sm font-semibold text-black shadow-[0_12px_32px_rgba(255,107,107,0.24)] active:scale-95"
-              animate={{ width: isActive ? 156 : 126 }}
+              className="inline-flex h-11 items-center justify-center gap-2 overflow-hidden rounded-full bg-accent px-5 text-sm font-semibold text-black shadow-[0_12px_32px_rgba(255,107,107,0.24)] active:scale-95"
+              animate={{ width: isActive ? 140 : 110 }}
               transition={{ type: "spring", stiffness: 280, damping: 22 }}
             >
-              Book Now
+              Reserve
               <ArrowUpRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
             </motion.button>
           </div>

@@ -17,6 +17,11 @@ export function DineUpExperience({ restaurants }: { restaurants: Restaurant[] })
 
   // Subscribe to Firebase Auth state once on mount.
   useEffect(() => {
+    if (!auth) {
+      setUser(null);
+      return;
+    }
+
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser);
     });

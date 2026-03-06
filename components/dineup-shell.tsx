@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { ArrowRight, Compass, LayoutDashboard, LogOut, Sparkles, Star, UserCircle } from "lucide-react";
+import { useSyncExternalStore } from "react";
+import { ArrowRight, Compass, LayoutDashboard, LogOut, Sparkles, UserCircle } from "lucide-react";
 import Link from "next/link";
 
 import type { Restaurant } from "@/lib/restaurants";
@@ -12,11 +12,9 @@ import { useAuthStore } from "@/store/auth-store";
 import { auth } from "@/lib/firebase";
 import { signOut } from "firebase/auth";
 
-const highlights = [
-  { label: "Live reservations", value: "128 tonight" },
-  { label: "Hyper-local picks", value: "6 neighborhoods" },
-  { label: "Curated by Baymax", value: "24/7 concierge" },
-];
+const subscribe = () => () => {};
+const getSnapshot = () => true;
+const getServerSnapshot = () => false;
 
 type DineUpShellProps = {
   restaurants: Restaurant[];
@@ -34,13 +32,10 @@ export function DineUpShell({
   onRequestLocation,
 }: DineUpShellProps) {
   const { user, status, openAuthModal } = useAuthStore();
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const mounted = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
   const handleSignOut = async () => {
+    if (!auth) return;
     try {
       await signOut(auth);
     } catch {
@@ -59,18 +54,18 @@ export function DineUpShell({
             </div>
             <div>
               <p className="font-display text-xl tracking-wide text-white">DineUp</p>
-              <p className="text-xs uppercase tracking-[0.3em] text-zinc-500">
-                Expressive Minimalist Dining
+              <p className="text-[10px] uppercase tracking-[0.3em] text-zinc-500">
+                Curated Dining
               </p>
             </div>
           </div>
 
           {/* Centre filter pills (desktop only) ─────────────────────────────── */}
           <div className="hidden items-center gap-2 md:flex">
-            {["Vegetarian Gems", "Chef's Tables", "After-hours Cafes"].map((item) => (
+            {["Culinary Arts", "Chef's Tables", "Late Night"].map((item) => (
               <button
                 key={item}
-                className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-zinc-300 transition-all duration-300 ease-out hover:border-accent/50 hover:bg-accent/10 hover:text-white active:scale-95"
+                className="rounded-full px-4 py-2 text-sm text-zinc-400 transition-all duration-300 ease-out hover:bg-white/5 hover:text-white active:scale-95"
               >
                 {item}
               </button>
@@ -124,55 +119,44 @@ export function DineUpShell({
         </nav>
 
         <section className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.5fr)]">
-          <div className="glass-panel rounded-4xl border px-6 py-8 sm:px-8 lg:px-10">
-            <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-              <div className="max-w-3xl space-y-5">
-                <div className="inline-flex items-center gap-2 rounded-full border border-accent/20 bg-accent/10 px-4 py-2 text-xs font-medium uppercase tracking-[0.25em] text-accent">
+          <div className="glass-panel rounded-4xl border px-6 py-12 sm:px-10 lg:px-12">
+            <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
+              <div className="max-w-2xl space-y-6">
+                <div className="inline-flex items-center gap-2 rounded-full border border-accent/20 bg-accent/5 px-4 py-2 text-xs font-medium uppercase tracking-[0.25em] text-accent">
                   <Sparkles className="h-3.5 w-3.5" />
-                  Hyper-local reservations, elevated.
+                  Select Reservations
                 </div>
                 <div className="space-y-4">
-                  <h1 className="font-display text-5xl leading-none tracking-tight text-white sm:text-6xl xl:text-7xl">
-                    Dine where the city feels most alive.
+                  <h1 className="font-display text-5xl leading-tight tracking-tight text-white sm:text-6xl lg:text-7xl">
+                    Dine brilliantly.
                   </h1>
-                  <p className="max-w-2xl text-base leading-7 text-zinc-400 sm:text-lg">
-                    Browse a living map of design-forward restaurants, compare atmospheres in a bento feed, and let Baymax surface the perfect table in seconds.
-                  </p>
                 </div>
               </div>
 
               <div className="flex flex-col gap-3 sm:flex-row">
-                <button className="group inline-flex items-center justify-center gap-2 rounded-full bg-accent px-6 py-3 text-sm font-semibold text-black shadow-[0_12px_40px_rgba(255,107,107,0.24)] transition-all duration-300 ease-out hover:-translate-y-px hover:shadow-[0_18px_50px_rgba(255,107,107,0.3)] active:scale-95">
-                  Explore tonight&apos;s tables
+                <button
+                  onClick={() => {
+                     document.getElementById('explore-section')?.scrollIntoView({ behavior: 'smooth' });
+                  }}
+                  className="group inline-flex items-center justify-center gap-2 rounded-full bg-accent px-6 py-3.5 text-sm font-semibold text-black shadow-[0_12px_40px_rgba(255,107,107,0.24)] transition-all duration-300 ease-out hover:-translate-y-px hover:shadow-[0_18px_50px_rgba(255,107,107,0.3)] active:scale-95"
+                >
+                  Explore tables
                   <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
-                </button>
-                <button className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm font-semibold text-white transition-all duration-300 ease-out hover:border-white/20 hover:bg-white/10 active:scale-95">
-                  View tasting routes
                 </button>
               </div>
             </div>
           </div>
-
-          <aside className="grid gap-4 sm:grid-cols-3 xl:grid-cols-1">
-            {highlights.map((item) => (
-              <div key={item.label} className="glass-panel rounded-3xl border p-5">
-                <p className="text-sm text-zinc-500">{item.label}</p>
-                <div className="mt-4 flex items-center justify-between">
-                  <p className="text-2xl font-semibold text-white">{item.value}</p>
-                  <Star className="h-5 w-5 text-accent" />
-                </div>
-              </div>
-            ))}
-          </aside>
         </section>
 
-        <RestaurantSplitView
-          restaurants={restaurants}
-          userLocation={userLocation}
-          locationStatus={locationStatus}
-          locationError={locationError}
-          onRequestLocation={onRequestLocation}
-        />
+        <section id="explore-section">
+          <RestaurantSplitView
+            restaurants={restaurants}
+            userLocation={userLocation}
+            locationStatus={locationStatus}
+            locationError={locationError}
+            onRequestLocation={onRequestLocation}
+          />
+        </section>
       </div>
     </main>
   );

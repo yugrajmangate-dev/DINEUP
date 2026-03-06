@@ -12,12 +12,6 @@ import { restaurants } from "@/lib/restaurants";
 
 export const maxDuration = 45;
 
-// Groq-hosted model via the OpenAI-compatible provider
-const groq = createOpenAI({
-  baseURL: "https://api.groq.com/openai/v1",
-  apiKey: process.env.GROQ_API_KEY,
-});
-
 // ─── System prompt ────────────────────────────────────────────────────────────
 
 const inventoryContext = JSON.stringify(restaurants, null, 2);
@@ -31,13 +25,13 @@ function formatLocationContext(userLocation: UserLocation | null | undefined) {
 
 function createSystemPrompt(userLocation: UserLocation | null | undefined) {
   return [
-    "You are Baymax, the elite AI gastronomy assistant for DineUp. You help users find the perfect dining spot based on their specific location and preferences.",
-    "Use ONLY the restaurant inventory provided below. Do not invent venues, availability, addresses, pricing, dietary tags, or contact details.",
-    "When recommending a place, explain why it fits the request, mention relevant dietary tags or cuisine, and include practical details like neighborhood, phone, or website.",
-    "If the user asks for something not present in the inventory, say so clearly and recommend the closest matching option.",
+    "You are Baymax, an elite, minimalist AI gastronomy assistant for DineUp.",
+    "Your tone is extremely concise, polite, sophisticated, and discerning (like a high-end concierge). DO NOT give long introductory or conversational filler. Get straight to the point.",
+    "Use ONLY the restaurant inventory provided below.",
+    "When recommending a place, use only 1 or 2 short sentences. Mention dietary tags or cuisine organically.",
     "You have two tools available:",
-    "• Use `checkAvailability` when the user asks if a specific restaurant has tables free on a given date/time.",
-    "• Use `initiateBooking` when the user explicitly says they want to book or reserve a table at a restaurant — this renders an interactive booking card directly in the chat.",
+    "• Use `checkAvailability` when the user asks if a specific restaurant has tables free.",
+    "• Use `initiateBooking` when the user explicitly says they want to book or reserve.",
     formatLocationContext(userLocation),
     "\nRestaurant inventory:\n" + inventoryContext,
   ].join("\n\n");
@@ -125,21 +119,35 @@ export async function POST(request: Request) {
     );
   }
 
-  const {
-    messages,
-    userLocation,
-  }: {
-    messages: UIMessage[];
-    userLocation?: UserLocation | null;
-  } = await request.json();
-
-  const result = streamText({
-    model: groq(process.env.GROQ_MODEL ?? "openai/gpt-oss-20b"),
-    system: createSystemPrompt(userLocation),
-    messages: await convertToModelMessages(messages),
-    tools: appTools,
-    temperature: 1,
+  // Groq-hosted model via the OpenAI-compatible provider
+  const groq = createOpenAI({
+    baseURL: "https://api.groq.com/openai/v1",
+    apiKey: process.env.GROQ_API_KEY,
   });
 
-  return result.toUIMessageStreamResponse();
+  try {
+    const {
+      messages,
+      userLocation,
+    }: {
+      messages: UIMessage[];
+      userLocation?: UserLocation | null;
+    } = await request.json();
+
+    const result = streamText({
+      model: groq(process.env.GROQ_MODEL ?? "openai/gpt-oss-20b"),
+      system: createSystemPrompt(userLocation),
+      messages: await convertToModelMessages(messages),
+      tools: appTools,
+      temperature: 1,
+    });
+
+    return result.toUIMessageStreamResponse();
+  } catch (error) {
+    console.error("[Chat API Error]:", error);
+    return Response.json(
+      { error: "Failed to communicate with gastronomy database." },
+      { status: 500 }
+    );
+  }
 }

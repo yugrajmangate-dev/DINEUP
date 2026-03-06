@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { collection, deleteDoc, doc, getDocs, orderBy, query, where } from "firebase/firestore";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -37,6 +37,10 @@ interface Booking {
   createdAt: { seconds: number } | null;
 }
 
+const subscribe = () => () => {};
+const getSnapshot = () => true;
+const getServerSnapshot = () => false;
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
@@ -45,11 +49,7 @@ export default function DashboardPage() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const mounted = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
   // Redirect unauthenticated visitors.
   useEffect(() => {
@@ -343,22 +343,32 @@ function BookingCard({
 
 function EmptyState() {
   return (
-    <div className="flex flex-col items-center py-20 text-center">
-      <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-full border border-white/10 bg-white/5">
-        <CalendarDays className="h-8 w-8 text-zinc-600" />
-      </div>
-      <h3 className="font-display text-2xl text-white">No reservations yet</h3>
-      <p className="mt-3 max-w-xs text-zinc-500">
-        Head back to the main page, find a table you love, and your bookings will appear here.
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, ease: "easeOut" }}
+      className="flex flex-col items-center py-20 text-center"
+    >
+      <motion.div
+        initial={{ scale: 0.8 }}
+        animate={{ scale: 1 }}
+        transition={{ type: "spring", stiffness: 200, damping: 20, delay: 0.1 }}
+        className="mb-6 flex h-24 w-24 items-center justify-center rounded-full border border-white/10 bg-accent/5 shadow-[0_0_40px_rgba(255,107,107,0.15)]"
+      >
+        <Compass className="h-10 w-10 text-accent" />
+      </motion.div>
+      <h3 className="font-display text-3xl tracking-wide text-white">No reservations yet</h3>
+      <p className="mt-3 max-w-sm text-zinc-400">
+        Your culinary journey awaits. Find a table you love, and your confirmed bookings will appear right here.
       </p>
       <Link
         href="/"
-        className="mt-8 inline-flex items-center gap-2 rounded-full bg-accent px-6 py-3 text-sm font-semibold text-black shadow-[0_12px_40px_rgba(255,107,107,0.24)] transition-all hover:-translate-y-px hover:shadow-[0_18px_50px_rgba(255,107,107,0.3)] active:scale-95"
+        className="mt-8 inline-flex items-center gap-2 rounded-full bg-accent px-7 py-3.5 text-sm font-semibold text-black shadow-[0_12px_40px_rgba(255,107,107,0.24)] transition-all hover:scale-105 active:scale-95"
       >
         <Compass className="h-4 w-4" />
-        Explore restaurants
+        Discover Restaurants
       </Link>
-    </div>
+    </motion.div>
   );
 }
 

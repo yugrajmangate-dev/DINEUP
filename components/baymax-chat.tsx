@@ -50,17 +50,7 @@ const starterMessages: UIMessage[] = [
     parts: [
       {
         type: "text",
-        text: "Hello, I am Baymax. I can pair a mood, dietary preference, or neighborhood with a table tonight.",
-      },
-    ],
-  },
-  {
-    id: "prompt",
-    role: "assistant",
-    parts: [
-      {
-        type: "text",
-        text: "Try asking for a Pure Veg tasting menu, a Koregaon Park date night, or ask me to book a table — I'll show you an instant reservation card.",
+        text: "Hello. I am Baymax. Where are we dining tonight?",
       },
     ],
   },
@@ -211,9 +201,9 @@ export function BaymaxChat({ userLocation, locationStatus }: BaymaxChatProps) {
 
   const quickPrompts = useMemo(
     () => [
-      "Find me a Pure Veg dinner nearby",
-      "Book a table at Terra Bloom for tonight",
-      "Is Cinder House available at 8 PM?",
+      "Find me a great dinner nearby",
+      "Reserve Terra Bloom",
+      "Is Cinder House free tonight?",
     ],
     [],
   );
@@ -370,7 +360,7 @@ export function BaymaxChat({ userLocation, locationStatus }: BaymaxChatProps) {
                 {error ? (
                   <div className="flex justify-start">
                     <div className="max-w-[85%] rounded-3xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm leading-6 text-red-200">
-                      {error.message}
+                      My connection to the gastronomy database is unstable right now. Please try again.
                     </div>
                   </div>
                 ) : null}
@@ -444,10 +434,15 @@ export function BaymaxChat({ userLocation, locationStatus }: BaymaxChatProps) {
           type="button"
           onClick={() => setIsOpen((current) => !current)}
           whileTap={{ scale: 0.95 }}
-          className="relative flex h-16 w-16 items-center justify-center rounded-full bg-accent text-black shadow-[0_18px_60px_rgba(255,107,107,0.35)]"
+          whileHover={{ scale: 1.05 }}
+          className="relative flex h-16 w-16 items-center justify-center rounded-full bg-accent text-black shadow-[0_18px_60px_rgba(255,107,107,0.35)] transition-all"
         >
-          <span className="absolute inset-0 rounded-full bg-accent/40 blur-2xl" />
-          <span className="absolute -inset-1.5 rounded-full border border-accent/30" />
+          <motion.span 
+            className="absolute inset-0 rounded-full bg-accent/40 blur-2xl"
+            animate={{ scale: [1, 1.2, 1], opacity: [0.6, 0.8, 0.6] }}
+            transition={{ duration: 3, repeat: Number.POSITIVE_INFINITY }}
+          />
+          <span className="absolute -inset-1.5 rounded-full border border-accent/20" />
           <Bot className="relative z-10 h-6 w-6" />
         </motion.button>
       </div>
