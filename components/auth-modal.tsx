@@ -86,7 +86,7 @@ function AuthModalPanel({ onClose }: { onClose: () => void }) {
       }}
     >
       <motion.div
-        className="glass-panel relative w-full max-w-md overflow-hidden rounded-[36px] border border-white/10 p-8"
+        className="relative w-full max-w-md overflow-hidden rounded-[36px] border border-white/10 bg-[#0F172A] p-8 shadow-[0_32px_80px_rgba(0,0,0,0.5)]"
         initial={{ opacity: 0, scale: 0.94, y: 24 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.96, y: 18 }}
@@ -123,7 +123,7 @@ function AuthModalPanel({ onClose }: { onClose: () => void }) {
               className={cn(
                 "flex-1 rounded-full py-2 text-sm font-medium transition-all duration-300 ease-out",
                 mode === tab
-                  ? "bg-accent text-black shadow-[0_4px_20px_rgba(255,107,107,0.3)]"
+                  ? "bg-accent text-white shadow-[0_4px_20px_rgba(255,107,53,0.3)]"
                   : "text-zinc-400 hover:text-white",
               )}
             >
@@ -183,7 +183,7 @@ function AuthModalPanel({ onClose }: { onClose: () => void }) {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full rounded-full bg-accent py-3 text-sm font-semibold text-black shadow-[0_12px_40px_rgba(255,107,107,0.24)] transition-all duration-300 hover:shadow-[0_18px_50px_rgba(255,107,107,0.3)] active:scale-95 disabled:opacity-60"
+            className="w-full rounded-full bg-accent py-3 text-sm font-semibold text-white shadow-[0_12px_40px_rgba(255,107,53,0.24)] transition-all duration-300 hover:shadow-[0_18px_50px_rgba(255,107,53,0.3)] active:scale-95 disabled:opacity-60"
           >
             {isLoading
               ? "Please wait…"

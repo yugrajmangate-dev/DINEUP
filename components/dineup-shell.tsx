@@ -59,6 +59,7 @@ export function DineUpShell({
               Discover design-forward restaurants. Let our AI concierge match you with the perfect table tonight.
             </p>
             <button
+              type="button"
               onClick={() => document.getElementById("explore-section")?.scrollIntoView({ behavior: "smooth" })}
               className="group inline-flex items-center gap-2 rounded-full bg-[#FF6B35] px-7 py-3.5 text-sm font-semibold text-white shadow-[0_8px_24px_rgba(255,107,53,0.28)] transition-all hover:-translate-y-0.5 hover:shadow-[0_16px_40px_rgba(255,107,53,0.38)] active:scale-95"
             >

@@ -8,7 +8,7 @@ Whether you're fixing bugs, adding animations, or improving our agentic AI (Baym
 
 ## Prerequisites
 
-Before setting up the project locally, please endure you have the following installed:
+Before setting up the project locally, please ensure you have the following installed:
 
 - **[Node.js](https://nodejs.org/en/)** (v20+ recommended)
 - **[Git](https://git-scm.com/)**
@@ -42,7 +42,7 @@ Follow these steps to replicate the production environment on your machine:
 
 Please configure `.env.local` meticulously with your own keys:
 
-- **Mapbox Token:** Required to render the beautiful dark-mode maps. Sign up [here](https://www.mapbox.com/) and grab a free API token, then set `NEXT_PUBLIC_MAPBOX_TOKEN`.
+- **Mapbox Token:** Required to render the beautiful live maps. Sign up [here](https://www.mapbox.com/) and grab a free API token, then set `NEXT_PUBLIC_MAPBOX_TOKEN`.
 - **Groq API Key:** Powers "Baymax" (our Agentic AI). Get your lightning-fast inference key [here](https://console.groq.com/). Set `GROQ_API_KEY` and `GROQ_MODEL` (we default it to `openai/gpt-oss-20b`).
 - **Firebase Configuration:** You must orchestrate your own Firebase backend for Authentication and Firestore. Go to the [Firebase Console](https://console.firebase.google.com/), construct a Web App, and populate:
   - `NEXT_PUBLIC_FIREBASE_API_KEY`

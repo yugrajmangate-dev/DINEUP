@@ -166,7 +166,8 @@ type BaymaxChatProps = {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function BaymaxChat({ userLocation, locationStatus }: BaymaxChatProps) {
-  const [isOpen, setIsOpen] = useState(false);
+  // Open automatically on every fresh page visit / reload.
+  const [isOpen, setIsOpen] = useState(true);
   const [input, setInput] = useState("");
   const [bookingRestaurantId, setBookingRestaurantId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
