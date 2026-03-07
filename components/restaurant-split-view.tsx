@@ -8,6 +8,7 @@ import {
   CalendarDays,
   ChevronLeft,
   ChevronRight,
+  Compass,
   Coffee,
   Leaf,
   LocateFixed,
@@ -21,7 +22,7 @@ import {
 
 import { BookingModal } from "@/components/booking-modal";
 import type { UserLocation } from "@/lib/geo";
-import { calculateDistanceKm, formatDistanceLabel, PUNE_CENTER } from "@/lib/geo";
+import { calculateDistanceKm, formatDistanceLabel } from "@/lib/geo";
 import type { GeolocationStatus } from "@/hooks/use-geolocation";
 import type { Restaurant, RestaurantIcon } from "@/lib/restaurants";
 import { cn } from "@/lib/utils";
@@ -82,7 +83,7 @@ function matchesFilter(restaurant: Restaurant, filter: FilterId): boolean {
 
 type RestaurantWithDistance = {
   restaurant: Restaurant;
-  distanceKm: number;
+  distanceKm: number | null;
   distanceLabel: string;
 };
 
@@ -103,30 +104,36 @@ export function RestaurantSplitView({
   locationError,
   onRequestLocation,
 }: RestaurantSplitViewProps) {
-  const safeUserLocation = userLocation ?? PUNE_CENTER;
+  const hasLiveLocation = locationStatus === "ready" && !!userLocation;
   const [activeRestaurantId, setActiveRestaurantId] = useState(restaurants[0]?.id);
   const [bookingRestaurantId, setBookingRestaurantId] = useState<string | null>(null);
   const [selectionMode, setSelectionMode] = useState<"auto" | "manual">("auto");
   const [activeFilter, setActiveFilter] = useState<FilterId>("all");
 
   const restaurantsWithDistance = useMemo<RestaurantWithDistance[]>(() => {
-    const reference = safeUserLocation;
-    const estimated = locationStatus !== "ready";
-
     const mapped = restaurants.map((restaurant) => {
-      const distanceKm = calculateDistanceKm(reference, {
-        latitude: restaurant.coordinates[1],
-        longitude: restaurant.coordinates[0],
-      });
+      const distanceKm = hasLiveLocation && userLocation
+        ? calculateDistanceKm(userLocation, {
+            latitude: restaurant.coordinates[1],
+            longitude: restaurant.coordinates[0],
+          })
+        : null;
+
       return {
         restaurant,
         distanceKm,
-        distanceLabel: formatDistanceLabel(distanceKm, estimated),
+        distanceLabel: distanceKm === null
+          ? "Enable location to see distance"
+          : formatDistanceLabel(distanceKm),
       };
     });
 
-    return mapped.sort((a, b) => a.distanceKm - b.distanceKm);
-  }, [locationStatus, restaurants, safeUserLocation]);
+    if (!hasLiveLocation) {
+      return mapped;
+    }
+
+    return mapped.sort((a, b) => (a.distanceKm ?? Number.POSITIVE_INFINITY) - (b.distanceKm ?? Number.POSITIVE_INFINITY));
+  }, [hasLiveLocation, restaurants, userLocation]);
 
   const filteredRestaurants = useMemo(
     () => restaurantsWithDistance.filter(({ restaurant }) => matchesFilter(restaurant, activeFilter)),
@@ -201,14 +208,17 @@ export function RestaurantSplitView({
                 className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-4 py-2 text-sm text-slate-700 hover:border-orange-200 hover:bg-orange-50 active:scale-95"
               >
                 <LocateFixed className="h-4 w-4 text-[#FF6B35]" />
-                {locationStatus === "ready" ? "Location synced" : "Use my location"}
+                {locationStatus === "ready" ? "Location synced" : locationStatus === "requesting" ? "Requesting location…" : "Use my location"}
               </button>
               <div className="rounded-full border border-gray-200 bg-white px-4 py-2 text-sm text-slate-500">
-                {locationStatus === "ready"
-                  ? "Sorted by proximity."
+                {hasLiveLocation
+                  ? `Showing live distances from your location${userLocation?.accuracy ? ` · ±${Math.round(userLocation.accuracy)} m` : ""}.`
                   : locationStatus === "requesting"
                     ? "Requesting location…"
-                    : locationError ?? "Grant access to sort by distance."}
+                    : locationError ?? "Allow location access to see distance from you."}
+              </div>
+              <div className="rounded-full border border-orange-100 bg-orange-50 px-4 py-2 text-sm text-orange-700">
+                {hasLiveLocation ? "Your location is live on the map." : "Distances stay hidden until you share your location."}
               </div>
             </div>
           </div>
@@ -243,7 +253,7 @@ export function RestaurantSplitView({
           restaurants={restaurantsWithDistance}
           selectionMode={selectionMode}
           setActiveRestaurantId={selectRestaurant}
-          userLocation={safeUserLocation}
+          userLocation={userLocation}
         />
       </section>
 
@@ -428,7 +438,7 @@ type MapPanelProps = {
   restaurants: RestaurantWithDistance[];
   selectionMode: "auto" | "manual";
   setActiveRestaurantId: (id: string, mode?: "auto" | "manual") => void;
-  userLocation: UserLocation;
+  userLocation: UserLocation | null;
 };
 
 /** Marker metadata stored per restaurant */
@@ -447,6 +457,7 @@ function MapPanel({
   userLocation,
 }: MapPanelProps) {
   const currentRestaurant = activeRestaurant ?? restaurants[0];
+  const hasLiveLocation = locationStatus === "ready" && !!userLocation;
   const mapContainerRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mapInstanceRef = useRef<any>(null);
@@ -533,13 +544,14 @@ function MapPanel({
           markers.set(restaurant.id, { marker, element: el });
         });
 
-        // User dot
-        const dot = document.createElement("div");
-        dot.className = "tomtom-user-marker";
-        dot.innerHTML = `<span class="tomtom-user-pulse"></span><span class="tomtom-user-dot"></span>`;
-        new tt.Marker({ element: dot, anchor: "center" })
-          .setLngLat([userLocation.longitude, userLocation.latitude])
-          .addTo(map);
+        if (hasLiveLocation && userLocation) {
+          const dot = document.createElement("div");
+          dot.className = "tomtom-user-marker";
+          dot.innerHTML = `<span class="tomtom-user-pulse"></span><span class="tomtom-user-dot"></span>`;
+          new tt.Marker({ element: dot, anchor: "center" })
+            .setLngLat([userLocation.longitude, userLocation.latitude])
+            .addTo(map);
+        }
       });
 
       resizeObserver = new ResizeObserver(() => {
@@ -565,7 +577,7 @@ function MapPanel({
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentRestaurant, restaurants, setActiveRestaurantId, token, userLocation.latitude, userLocation.longitude]);
+  }, [currentRestaurant, hasLiveLocation, restaurants, setActiveRestaurantId, token, userLocation]);
 
   // ── Pan to hovered / selected restaurant ────────────────────────────
   useEffect(() => {
@@ -600,7 +612,7 @@ function MapPanel({
 
   if (!currentRestaurant) {
     return (
-      <div className="glass-panel sticky top-24 flex min-h-[600px] items-center justify-center rounded-4xl p-6 text-center text-slate-500">
+      <div className="glass-panel sticky top-24 flex min-h-150 items-center justify-center rounded-4xl p-6 text-center text-slate-500">
         No restaurants available right now.
       </div>
     );
@@ -608,21 +620,45 @@ function MapPanel({
 
   // ── Live TomTom map ─────────────────────────────────────────────────
   return (
-    <div className="glass-panel sticky top-24 min-h-[40rem] overflow-hidden rounded-4xl p-2">
+    <div className="glass-panel sticky top-24 min-h-160 overflow-hidden rounded-4xl p-2">
       {/* TomTom requires the container to have a non-zero computed height before
           map() is called. h-[calc(100vh-8rem)] provides that; min-h-[600px]
           is the hard floor so the canvas is never zero-height on short viewports. */}
-      <div className="relative h-[calc(100vh-8rem)] min-h-[600px] overflow-hidden rounded-3xl border border-gray-200">
+      <div className="relative h-[calc(100vh-8rem)] min-h-150 overflow-hidden rounded-3xl border border-gray-200">
         <div ref={mapContainerRef} className="absolute inset-0" />
 
         {/* Floating label */}
         <div className="pointer-events-none absolute left-4 top-4 rounded-full border border-gray-200 bg-white/90 px-4 py-2 text-xs text-slate-500 shadow-sm backdrop-blur-md">
-          {locationStatus === "ready"
-            ? "Live map · Synced to your location"
+          {hasLiveLocation
+            ? `Live map · Your location is active${userLocation?.accuracy ? ` · ±${Math.round(userLocation.accuracy)} m` : ""}`
             : locationStatus === "requesting"
               ? "Live map · Waiting for your location permission"
-              : "Live map · Click cards or pins to focus restaurants"}
+              : "Live map · Allow location access to see your true distances"}
         </div>
+
+        {!hasLiveLocation && (
+          <div className="absolute right-4 top-4 z-10 max-w-xs rounded-2xl border border-orange-200 bg-white/95 p-4 text-sm text-slate-600 shadow-lg backdrop-blur-md">
+            <div className="flex items-start gap-3">
+              <div className="rounded-2xl bg-orange-50 p-2 text-orange-600">
+                <Compass className="h-4 w-4" />
+              </div>
+              <div>
+                <p className="font-semibold text-slate-900">Use your location for accurate distances</p>
+                <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                  DineUp will only show hotel distances from your actual position after you allow location access.
+                </p>
+                <button
+                  type="button"
+                  onClick={onRequestLocation}
+                  className="pointer-events-auto mt-3 inline-flex items-center gap-2 rounded-full bg-[#FF6B35] px-3.5 py-2 text-xs font-semibold text-white shadow-[0_8px_20px_rgba(255,107,53,0.25)] active:scale-95"
+                >
+                  <LocateFixed className="h-3.5 w-3.5" />
+                  Share my location
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Spotlighting card */}
         <AnimatePresence mode="wait">
@@ -638,7 +674,7 @@ function MapPanel({
                 <p className="text-[10px] uppercase tracking-[0.24em] text-slate-400">Now spotlighting</p>
                 <h3 className="mt-1 font-display text-2xl text-slate-900">{currentRestaurant.restaurant.name}</h3>
                 <p className="mt-0.5 text-xs text-slate-500">
-                  {currentRestaurant.restaurant.cuisine} · {currentRestaurant.distanceLabel} · {currentRestaurant.restaurant.vibe}
+                  {currentRestaurant.restaurant.cuisine} · {currentRestaurant.distanceLabel} · {hasLiveLocation ? "From your live location" : "Waiting for your location"} · {currentRestaurant.restaurant.vibe}
                 </p>
               </div>
               <div className="flex flex-wrap gap-1.5">
