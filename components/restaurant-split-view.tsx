@@ -191,7 +191,7 @@ export function RestaurantSplitView({
               </div>
               <div className="hidden items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-4 py-2 text-sm text-slate-500 sm:flex">
                 <MapPinned className="h-4 w-4 text-[#FF6B35]" />
-                Hover a card to move the pin.
+                Click a card to focus it on the map.
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -227,7 +227,7 @@ export function RestaurantSplitView({
                   restaurant={entry.restaurant}
                   distanceLabel={entry.distanceLabel}
                   isActive={entry.restaurant.id === activeRestaurant?.restaurant.id}
-                  onHover={() => selectRestaurant(entry.restaurant.id)}
+                  onSelect={() => selectRestaurant(entry.restaurant.id)}
                   onBookNow={() => setBookingRestaurantId(entry.restaurant.id)}
                 />
               ))}
@@ -265,11 +265,11 @@ type RestaurantCardProps = {
   restaurant: Restaurant;
   distanceLabel: string;
   isActive: boolean;
-  onHover: () => void;
+  onSelect: () => void;
   onBookNow: () => void;
 };
 
-function RestaurantCard({ restaurant, distanceLabel, isActive, onHover, onBookNow }: RestaurantCardProps) {
+function RestaurantCard({ restaurant, distanceLabel, isActive, onSelect, onBookNow }: RestaurantCardProps) {
   const Icon = iconMap[restaurant.icon];
   const [currentImg, setCurrentImg] = useState(0);
   const [imgError, setImgError] = useState(false);
@@ -284,8 +284,8 @@ function RestaurantCard({ restaurant, distanceLabel, isActive, onHover, onBookNo
   return (
     <motion.article
       variants={cardVariants}
-      onHoverStart={onHover}
-      onFocusCapture={onHover}
+      onClick={onSelect}
+      onFocusCapture={onSelect}
       className={cn(
         "group relative overflow-hidden rounded-3xl border bg-white transition-all duration-400 ease-out",
         "shadow-[0_8px_30px_rgb(0,0,0,0.04)]",
@@ -524,7 +524,6 @@ function MapPanel({
           const isActive = restaurant.id === currentRestaurant.restaurant.id;
           const el = buildMarkerDom(restaurant, distanceLabel, isActive);
 
-          el.addEventListener("mouseenter", () => setActiveRestaurantId(restaurant.id));
           el.addEventListener("click", () => setActiveRestaurantId(restaurant.id));
 
           const marker = new tt.Marker({ element: el, anchor: "bottom" })
@@ -620,7 +619,9 @@ function MapPanel({
         <div className="pointer-events-none absolute left-4 top-4 rounded-full border border-gray-200 bg-white/90 px-4 py-2 text-xs text-slate-500 shadow-sm backdrop-blur-md">
           {locationStatus === "ready"
             ? "Live map · Synced to your location"
-            : "Live map · Hover cards to move pins"}
+            : locationStatus === "requesting"
+              ? "Live map · Waiting for your location permission"
+              : "Live map · Click cards or pins to focus restaurants"}
         </div>
 
         {/* Spotlighting card */}

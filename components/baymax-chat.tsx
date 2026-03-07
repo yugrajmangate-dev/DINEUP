@@ -111,6 +111,23 @@ function AvailabilityResultCard({ result }: { result: Record<string, unknown> })
   );
 }
 
+function ToolErrorCard({
+  title,
+  message,
+}: {
+  title: string;
+  message: string;
+}) {
+  return (
+    <div className="flex justify-start">
+      <div className="max-w-[88%] rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-red-500">{title}</p>
+        <p className="mt-1 leading-relaxed">{message}</p>
+      </div>
+    </div>
+  );
+}
+
 // ─── Booking card ─────────────────────────────────────────────────────────────
 
 function BookingCard({ result, onBook }: { result: Record<string, unknown>; onBook: (id: string) => void }) {
@@ -222,6 +239,35 @@ function BookingCard({ result, onBook }: { result: Record<string, unknown>; onBo
       </motion.div>
     </div>
   );
+}
+
+function renderToolResult(
+  toolName: string,
+  result: Record<string, unknown>,
+  idx: number,
+  onBook: (id: string) => void,
+) {
+  const errorMessage = typeof result.error === "string"
+    ? result.error
+    : typeof result.message === "string" && result.ok === false
+      ? result.message
+      : typeof result.bookingMessage === "string" && result.ok === false
+        ? result.bookingMessage
+        : null;
+
+  if (errorMessage) {
+    return <ToolErrorCard key={idx} title={toolName} message={errorMessage} />;
+  }
+
+  if (toolName === "checkAvailability") {
+    return <AvailabilityResultCard key={idx} result={result} />;
+  }
+
+  if (toolName === "initiateBooking") {
+    return <BookingCard key={idx} result={result} onBook={onBook} />;
+  }
+
+  return null;
 }
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -348,12 +394,7 @@ export function BaymaxChat({ userLocation, locationStatus }: BaymaxChatProps) {
                           return <ToolCallingBadge key={idx} toolName={inv.toolName} />;
                         }
                         if (inv.state === "result" && inv.result) {
-                          if (inv.toolName === "checkAvailability") {
-                            return <AvailabilityResultCard key={idx} result={inv.result} />;
-                          }
-                          if (inv.toolName === "initiateBooking" && !inv.result.error) {
-                            return <BookingCard key={idx} result={inv.result} onBook={setBookingRestaurantId} />;
-                          }
+                          return renderToolResult(inv.toolName, inv.result, idx, setBookingRestaurantId);
                         }
                         return null;
                       }
@@ -368,12 +409,7 @@ export function BaymaxChat({ userLocation, locationStatus }: BaymaxChatProps) {
                       }
                       if (part.type === "tool-result") {
                         const r = part as ToolResultPart;
-                        if (r.toolName === "checkAvailability") {
-                          return <AvailabilityResultCard key={idx} result={r.result} />;
-                        }
-                        if (r.toolName === "initiateBooking" && !r.result.error) {
-                          return <BookingCard key={idx} result={r.result} onBook={setBookingRestaurantId} />;
-                        }
+                        return renderToolResult(r.toolName, r.result, idx, setBookingRestaurantId);
                       }
                       return null;
                     })}

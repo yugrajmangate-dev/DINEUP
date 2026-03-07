@@ -54,10 +54,33 @@ function createSystemPrompt(userLocation: UserLocation | null | undefined) {
     "You have two tools available:",
     "• Use `checkAvailability` when the user asks if a specific restaurant has tables free.",
     "• Use `initiateBooking` when the user explicitly says they want to book or reserve.",
+    "If the user mentions a restaurant by name, convert it to the matching inventory id before calling a tool.",
     "Always pass booking/check times in 24-hour HH:mm format when possible (e.g. 20:00).",
     formatLocationContext(userLocation),
     "\nRestaurant inventory:\n" + buildInventoryContext(),
   ].join("\n\n");
+}
+
+function slugifyRestaurantInput(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/&/g, "and")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function resolveRestaurantIdentifier(input: string) {
+  const raw = input.trim();
+  const lowered = raw.toLowerCase();
+  const slug = slugifyRestaurantInput(raw);
+
+  return restaurants.find((restaurant) =>
+    restaurant.id === raw
+    || restaurant.id.toLowerCase() === lowered
+    || restaurant.name.toLowerCase() === lowered
+    || slugifyRestaurantInput(restaurant.name) === slug
+  ) ?? null;
 }
 
 function normalizeMessagesForModel(messages: UIMessage[]): UIMessage[] {
@@ -100,7 +123,22 @@ const appTools = {
         .describe("The requested time slot, preferably in HH:mm (24-hour) e.g. '20:00'."),
     }),
     execute: async ({ restaurantId, date, time }) => {
-      const result = checkAvailability(restaurantId, time);
+      const restaurant = resolveRestaurantIdentifier(restaurantId);
+      if (!restaurant) {
+        return {
+          ok: false,
+          available: false,
+          restaurantId,
+          requestedSlot: time,
+          remainingSlots: [] as string[],
+          error: `Restaurant '${restaurantId}' not found.`,
+          message: `I couldn’t match '${restaurantId}' to a restaurant in DineUp. Please try the restaurant name again.`,
+          date: date ?? null,
+          time,
+        };
+      }
+
+      const result = checkAvailability(restaurant.id, time);
       return {
         ...result,
         date: date ?? null,
@@ -136,14 +174,24 @@ const appTools = {
         .describe("Optional requested date in YYYY-MM-DD format."),
     }),
     execute: async ({ restaurantId, time, partySize, date }) => {
-      const restaurant = restaurants.find((r) => r.id === restaurantId);
+      const restaurant = resolveRestaurantIdentifier(restaurantId);
       if (!restaurant) {
-        return { error: `Restaurant '${restaurantId}' not found.` };
+        return {
+          ok: false,
+          booked: false,
+          restaurantId,
+          requestedSlot: time,
+          partySize,
+          slots: [] as string[],
+          error: `Restaurant '${restaurantId}' not found.`,
+          bookingMessage: `I couldn’t match '${restaurantId}' to a restaurant in DineUp. Please try again with the restaurant name.`,
+        };
       }
 
-      const booking = bookTable(restaurantId, time, partySize);
+      const booking = bookTable(restaurant.id, time, partySize);
 
       return {
+        ok: booking.ok,
         booked: booking.booked,
         bookingMessage: booking.message,
         requestedSlot: booking.requestedSlot,
