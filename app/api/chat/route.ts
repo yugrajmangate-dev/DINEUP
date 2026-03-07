@@ -60,6 +60,29 @@ function createSystemPrompt(userLocation: UserLocation | null | undefined) {
   ].join("\n\n");
 }
 
+function normalizeMessagesForModel(messages: UIMessage[]): UIMessage[] {
+  const validRoles = new Set(["user", "assistant", "system"]);
+
+  return messages
+    .filter((message) =>
+      message.id !== "intro"
+      && message.id !== "baymax-intro"
+      && validRoles.has(message.role)
+    )
+    .map((message) => {
+      const textParts = (message.parts ?? []).filter(
+        (part): part is Extract<(typeof message.parts)[number], { type: "text" }> =>
+          part.type === "text" && typeof part.text === "string" && part.text.trim().length > 0,
+      );
+
+      return {
+        ...message,
+        parts: textParts,
+      };
+    })
+    .filter((message) => message.parts.length > 0);
+}
+
 // ─── Tools ────────────────────────────────────────────────────────────────────
 
 const appTools = {
@@ -171,10 +194,7 @@ export async function POST(request: Request) {
     // Strip UI-only / synthetic messages that are not valid model messages.
     // The intro assistant message injected on the client has id="intro" and
     // must not be forwarded to the model (it causes a validation error).
-    const VALID_ROLES = new Set(["user", "assistant", "system", "tool"]);
-    const safeMessages = messages.filter(
-      (m) => m.id !== "intro" && m.id !== "baymax-intro" && VALID_ROLES.has(m.role)
-    );
+    const safeMessages = normalizeMessagesForModel(messages);
 
     const result = streamText({
       model: groq(process.env.GROQ_MODEL ?? "llama-3.3-70b-versatile"),
