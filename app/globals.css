@@ -82,6 +82,20 @@ button {
 
 /* ─── TomTom custom markers ────────────────────────────────────────────────── */
 
+/* TomTom v6 uses Mapbox GL class names internally. Ensure every generated
+   wrapper stretches to the full panel size; otherwise the canvas can remain at
+   the initial 300px hydration height while the parent grows to 600px+. */
+.mapboxgl-map,
+.mapboxgl-canvas-container,
+.mapboxgl-canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.mapboxgl-canvas {
+  display: block;
+}
+
 .tomtom-custom-marker {
   cursor: pointer;
   display: flex;

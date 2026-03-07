@@ -460,11 +460,25 @@ function MapPanel({
   const flySequence = useMapStore((s) => s.flySequence);
   const clearMapTarget = useMapStore((s) => s.clearMapTarget);
 
+  const resizeMap = () => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
+    requestAnimationFrame(() => {
+      try {
+        map.resize();
+      } catch (err) {
+        console.error("[TomTom] resize() failed:", err);
+      }
+    });
+  };
+
   // ── Initialize TomTom map (runs once when token is present) ─────────
   useEffect(() => {
     if (!mapContainerRef.current || mapInstanceRef.current || !currentRestaurant) return;
 
     let cancelled = false;
+    let resizeObserver: ResizeObserver | null = null;
     const markers = markersRef.current;
 
     // Dynamic import avoids SSR / "window is not defined" errors
@@ -499,6 +513,11 @@ function MapPanel({
       map.on("load", () => {
         if (cancelled) return;
         mapLoadedRef.current = true;
+        resizeMap();
+
+        // Some layouts settle a tick later after sticky/grid sizing resolves.
+        window.setTimeout(resizeMap, 60);
+        window.setTimeout(resizeMap, 220);
 
         // Restaurant markers
         restaurants.forEach(({ restaurant, distanceLabel }) => {
@@ -523,6 +542,13 @@ function MapPanel({
           .setLngLat([userLocation.longitude, userLocation.latitude])
           .addTo(map);
       });
+
+      resizeObserver = new ResizeObserver(() => {
+        resizeMap();
+      });
+
+      resizeObserver.observe(mapContainerRef.current);
+      window.addEventListener("resize", resizeMap);
     }).catch((err) => {
       console.error("[TomTom] SDK import or map setup failed:", err);
     });
@@ -530,6 +556,8 @@ function MapPanel({
     return () => {
       cancelled = true;
       mapLoadedRef.current = false;
+      resizeObserver?.disconnect();
+      window.removeEventListener("resize", resizeMap);
       const currentMap = mapInstanceRef.current;
       if (currentMap) {
         currentMap.remove();
