@@ -103,14 +103,15 @@ export function RestaurantSplitView({
   locationError,
   onRequestLocation,
 }: RestaurantSplitViewProps) {
+  const safeUserLocation = userLocation ?? PUNE_CENTER;
   const [activeRestaurantId, setActiveRestaurantId] = useState(restaurants[0]?.id);
   const [bookingRestaurantId, setBookingRestaurantId] = useState<string | null>(null);
   const [selectionMode, setSelectionMode] = useState<"auto" | "manual">("auto");
   const [activeFilter, setActiveFilter] = useState<FilterId>("all");
 
   const restaurantsWithDistance = useMemo<RestaurantWithDistance[]>(() => {
-    const reference = userLocation ?? PUNE_CENTER;
-    const estimated = !userLocation;
+    const reference = safeUserLocation;
+    const estimated = locationStatus !== "ready";
 
     const mapped = restaurants.map((restaurant) => {
       const distanceKm = calculateDistanceKm(reference, {
@@ -125,7 +126,7 @@ export function RestaurantSplitView({
     });
 
     return mapped.sort((a, b) => a.distanceKm - b.distanceKm);
-  }, [restaurants, userLocation]);
+  }, [locationStatus, restaurants, safeUserLocation]);
 
   const filteredRestaurants = useMemo(
     () => restaurantsWithDistance.filter(({ restaurant }) => matchesFilter(restaurant, activeFilter)),
@@ -242,7 +243,7 @@ export function RestaurantSplitView({
           restaurants={restaurantsWithDistance}
           selectionMode={selectionMode}
           setActiveRestaurantId={selectRestaurant}
-          userLocation={userLocation}
+          userLocation={safeUserLocation}
         />
       </section>
 
@@ -427,7 +428,7 @@ type MapPanelProps = {
   restaurants: RestaurantWithDistance[];
   selectionMode: "auto" | "manual";
   setActiveRestaurantId: (id: string, mode?: "auto" | "manual") => void;
-  userLocation: UserLocation | null;
+  userLocation: UserLocation;
 };
 
 /** Marker metadata stored per restaurant */
@@ -445,13 +446,14 @@ function MapPanel({
   setActiveRestaurantId,
   userLocation,
 }: MapPanelProps) {
+  const currentRestaurant = activeRestaurant ?? restaurants[0];
   const mapContainerRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mapInstanceRef = useRef<any>(null);
   const markersRef = useRef<Map<string, MarkerEntry>>(new Map());
   const mapLoadedRef = useRef(false);
 
-  const token = process.env.NEXT_PUBLIC_TOMTOM_API_KEY;
+  const token = process.env.NEXT_PUBLIC_TOMTOM_API_KEY ?? "XrGZxbn0mSMFA47GFG6KuiD8bV7VtbMi";
 
   // Listen to Baymax "View on Map" triggers via the shared store
   const mapTarget = useMapStore((s) => s.mapTarget);
@@ -460,7 +462,7 @@ function MapPanel({
 
   // ── Initialize TomTom map (runs once when token is present) ─────────
   useEffect(() => {
-    if (!token || !mapContainerRef.current || mapInstanceRef.current) return;
+    if (!mapContainerRef.current || mapInstanceRef.current || !currentRestaurant) return;
 
     let cancelled = false;
     const markers = markersRef.current;
@@ -469,9 +471,7 @@ function MapPanel({
     import("@tomtom-international/web-sdk-maps").then((tt) => {
       if (cancelled || !mapContainerRef.current) return;
 
-      const center: [number, number] = activeRestaurant
-        ? activeRestaurant.restaurant.coordinates
-        : [PUNE_CENTER.longitude, PUNE_CENTER.latitude];
+      const center: [number, number] = currentRestaurant.restaurant.coordinates;
 
       // Wrap map init in try/catch — TomTom SDK throws plain objects
       // (not Error instances) on WebGL / key failures, which React's
@@ -502,7 +502,7 @@ function MapPanel({
 
         // Restaurant markers
         restaurants.forEach(({ restaurant, distanceLabel }) => {
-          const isActive = restaurant.id === activeRestaurant?.restaurant.id;
+          const isActive = restaurant.id === currentRestaurant.restaurant.id;
           const el = buildMarkerDom(restaurant, distanceLabel, isActive);
 
           el.addEventListener("mouseenter", () => setActiveRestaurantId(restaurant.id));
@@ -516,14 +516,12 @@ function MapPanel({
         });
 
         // User dot
-        if (userLocation) {
-          const dot = document.createElement("div");
-          dot.className = "tomtom-user-marker";
-          dot.innerHTML = `<span class="tomtom-user-pulse"></span><span class="tomtom-user-dot"></span>`;
-          new tt.Marker({ element: dot, anchor: "center" })
-            .setLngLat([userLocation.longitude, userLocation.latitude])
-            .addTo(map);
-        }
+        const dot = document.createElement("div");
+        dot.className = "tomtom-user-marker";
+        dot.innerHTML = `<span class="tomtom-user-pulse"></span><span class="tomtom-user-dot"></span>`;
+        new tt.Marker({ element: dot, anchor: "center" })
+          .setLngLat([userLocation.longitude, userLocation.latitude])
+          .addTo(map);
       });
     }).catch((err) => {
       console.error("[TomTom] SDK import or map setup failed:", err);
@@ -540,24 +538,24 @@ function MapPanel({
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
+  }, [currentRestaurant, restaurants, setActiveRestaurantId, token, userLocation.latitude, userLocation.longitude]);
 
   // ── Pan to hovered / selected restaurant ────────────────────────────
   useEffect(() => {
     const map = mapInstanceRef.current;
-    if (!map || !activeRestaurant || !mapLoadedRef.current) return;
+    if (!map || !currentRestaurant || !mapLoadedRef.current) return;
 
     map.easeTo({
-      center: activeRestaurant.restaurant.coordinates,
+      center: currentRestaurant.restaurant.coordinates,
       zoom: selectionMode === "manual" ? 14.2 : map.getZoom(),
       duration: 800,
     });
 
     // Highlight active marker, un-highlight the rest
     markersRef.current.forEach(({ element }, id) => {
-      applyMarkerHighlight(element, id === activeRestaurant.restaurant.id);
+      applyMarkerHighlight(element, id === currentRestaurant.restaurant.id);
     });
-  }, [activeRestaurant, selectionMode]);
+  }, [currentRestaurant, selectionMode]);
 
   // ── Fly to Baymax "View on Map" target ──────────────────────────────
   useEffect(() => {
@@ -573,78 +571,10 @@ function MapPanel({
     clearMapTarget();
   }, [mapTarget, flySequence, clearMapTarget]);
 
-  // ── No-token fallback ───────────────────────────────────────────────
-  if (!token || !activeRestaurant) {
+  if (!currentRestaurant) {
     return (
-      <div className="glass-panel sticky top-24 flex min-h-[40rem] flex-col overflow-hidden rounded-4xl p-6">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">Map preview</p>
-            <h3 className="mt-1 font-display text-3xl text-slate-900">Connect TomTom to go live</h3>
-          </div>
-          <div className="rounded-full border border-orange-200 bg-orange-50 px-4 py-2 text-xs uppercase tracking-[0.2em] text-orange-500">
-            Add NEXT_PUBLIC_TOMTOM_API_KEY
-          </div>
-        </div>
-
-        <div className="relative mt-6 flex-1 overflow-hidden rounded-3xl border border-gray-200 bg-[radial-gradient(circle_at_top,rgba(255,107,53,0.06),transparent_28%),#F1F5F9]">
-          <div className="absolute inset-0 bg-[linear-gradient(rgba(0,0,0,0.04)_1px,transparent_1px),linear-gradient(90deg,rgba(0,0,0,0.04)_1px,transparent_1px)] bg-[size:72px_72px]" />
-          {restaurants.map(({ restaurant, distanceLabel }, index) => {
-            const left = 18 + ((index * 13) % 60);
-            const top  = 18 + ((index * 17) % 58);
-            const Icon = iconMap[restaurant.icon];
-            const isAct = restaurant.id === activeRestaurant?.restaurant?.id;
-
-            return (
-              <motion.button
-                key={restaurant.id}
-                className={cn(
-                  "absolute rounded-full border px-3 py-2 text-left backdrop-blur-md shadow-[0_4px_16px_rgb(0,0,0,0.06)]",
-                  isAct
-                    ? "border-[#FF6B35] bg-[#FF6B35] text-white"
-                    : "border-gray-200 bg-white text-slate-900",
-                )}
-                style={{ left: `${left}%`, top: `${top}%` }}
-                onMouseEnter={() => setActiveRestaurantId(restaurant.id)}
-                whileHover={{ y: -4, scale: 1.04 }}
-                animate={isAct ? { y: [0, -8, 0], scale: [1, 1.08, 1] } : { y: 0, scale: 1 }}
-                transition={{ repeat: isAct ? Number.POSITIVE_INFINITY : 0, duration: 1.6 }}
-              >
-                <div className="flex items-center gap-2 text-xs font-semibold">
-                  <Icon className="h-3.5 w-3.5" />
-                  {distanceLabel}
-                </div>
-              </motion.button>
-            );
-          })}
-
-          <div className="absolute bottom-6 left-6 right-6 rounded-3xl border border-gray-200 bg-white/90 p-5 shadow-md backdrop-blur-xl">
-            <p className="text-[10px] uppercase tracking-[0.24em] text-slate-400">Ready when you are</p>
-            <div className="mt-3 flex flex-wrap items-end justify-between gap-4">
-              <div>
-                <h4 className="font-display text-2xl text-slate-900">{activeRestaurant!.restaurant.name}</h4>
-                <p className="mt-1 text-sm text-slate-500">
-                  {activeRestaurant!.restaurant.neighborhood} · {activeRestaurant!.restaurant.cuisine}
-                </p>
-              </div>
-              {locationStatus === "ready" ? (
-                <div className="flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-4 py-2 text-sm text-slate-500">
-                  <LocateFixed className="h-4 w-4 text-[#FF6B35]" />
-                  Live distance sync active.
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={onRequestLocation}
-                  className="flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-4 py-2 text-sm text-slate-700 hover:border-orange-200 active:scale-95"
-                >
-                  <CalendarDays className="h-4 w-4 text-[#FF6B35]" />
-                  Enable proximity sorting.
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
+      <div className="glass-panel sticky top-24 flex min-h-[600px] items-center justify-center rounded-4xl p-6 text-center text-slate-500">
+        No restaurants available right now.
       </div>
     );
   }
@@ -668,7 +598,7 @@ function MapPanel({
         {/* Spotlighting card */}
         <AnimatePresence mode="wait">
           <motion.div
-            key={activeRestaurant.restaurant.id}
+            key={currentRestaurant.restaurant.id}
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 10 }}
@@ -677,13 +607,13 @@ function MapPanel({
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-[10px] uppercase tracking-[0.24em] text-slate-400">Now spotlighting</p>
-                <h3 className="mt-1 font-display text-2xl text-slate-900">{activeRestaurant.restaurant.name}</h3>
+                <h3 className="mt-1 font-display text-2xl text-slate-900">{currentRestaurant.restaurant.name}</h3>
                 <p className="mt-0.5 text-xs text-slate-500">
-                  {activeRestaurant.restaurant.cuisine} · {activeRestaurant.distanceLabel} · {activeRestaurant.restaurant.vibe}
+                  {currentRestaurant.restaurant.cuisine} · {currentRestaurant.distanceLabel} · {currentRestaurant.restaurant.vibe}
                 </p>
               </div>
               <div className="flex flex-wrap gap-1.5">
-                {activeRestaurant.restaurant.reservationSlots.map((slot) => (
+                {currentRestaurant.restaurant.reservationSlots.map((slot) => (
                   <span
                     key={slot}
                     className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-[10px] text-slate-500"

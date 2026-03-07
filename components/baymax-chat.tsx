@@ -41,7 +41,22 @@ interface ToolResultPart {
   result: Record<string, unknown>;
 }
 
-type MessagePart = { type: "text"; text: string } | ToolCallPart | ToolResultPart;
+// AI SDK v6 uses "tool-invocation" with a state field instead of separate
+// "tool-call" / "tool-result" parts (which were the AI SDK v4 format).
+interface ToolInvocationPart {
+  type: "tool-invocation";
+  toolInvocationId: string;
+  toolName: string;
+  args: Record<string, unknown>;
+  state: "call" | "partial-call" | "result";
+  result?: Record<string, unknown>;
+}
+
+type MessagePart =
+  | { type: "text"; text: string }
+  | ToolCallPart
+  | ToolResultPart
+  | ToolInvocationPart;
 
 // ─── Starter message ──────────────────────────────────────────────────────────
 
@@ -207,6 +222,7 @@ export function BaymaxChat({ userLocation, locationStatus }: BaymaxChatProps) {
   const [isOpen, setIsOpen] = useState(true);
   const [input, setInput] = useState("");
   const [bookingRestaurantId, setBookingRestaurantId] = useState<string | null>(null);
+  const [localError, setLocalError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
   const quickPrompts = useMemo(() => [
@@ -235,7 +251,13 @@ export function BaymaxChat({ userLocation, locationStatus }: BaymaxChatProps) {
     if (!trimmed) return;
     setInput("");
     setIsOpen(true);
-    await sendMessage({ text: trimmed }, { body: { userLocation } });
+    setLocalError(null);
+    try {
+      await sendMessage({ text: trimmed }, { body: { userLocation } });
+    } catch (err) {
+      console.error("[Baymax] sendMessage failed:", err);
+      setLocalError("Baymax could not reach the reservation service right now.");
+    }
   };
 
   const bookingRestaurant = useMemo(
@@ -245,7 +267,7 @@ export function BaymaxChat({ userLocation, locationStatus }: BaymaxChatProps) {
 
   return (
     <>
-      <div className="fixed bottom-6 right-6 z-[90] flex flex-col items-end gap-3">
+      <div id="baymax-concierge" className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3 pointer-events-none">
         {/* ── Chat window ─────────────────────────────────────────────────── */}
         <AnimatePresence>
           {isOpen && (
@@ -254,7 +276,7 @@ export function BaymaxChat({ userLocation, locationStatus }: BaymaxChatProps) {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 16, scale: 0.94 }}
               transition={{ type: "spring", stiffness: 300, damping: 28 }}
-              className="flex w-[min(400px,calc(100vw-2rem))] flex-col overflow-hidden rounded-[28px] border border-gray-200/80 bg-white shadow-[0_20px_60px_rgba(0,0,0,0.15),0_4px_16px_rgba(0,0,0,0.08)]"
+              className="pointer-events-auto flex w-[350px] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-[28px] border border-gray-200/80 bg-white shadow-[0_20px_60px_rgba(0,0,0,0.15),0_4px_16px_rgba(0,0,0,0.08)]"
               style={{ maxHeight: "min(600px, calc(100vh - 6rem))" }}
             >
               {/* Header */}
@@ -302,19 +324,39 @@ export function BaymaxChat({ userLocation, locationStatus }: BaymaxChatProps) {
                           </div>
                         );
                       }
+
+                      // ── AI SDK v6 format: tool-invocation with state ──────
+                      if (part.type === "tool-invocation") {
+                        const inv = part as ToolInvocationPart;
+                        if (inv.state === "call" || inv.state === "partial-call") {
+                          return <ToolCallingBadge key={idx} toolName={inv.toolName} />;
+                        }
+                        if (inv.state === "result" && inv.result) {
+                          if (inv.toolName === "checkAvailability") {
+                            return <AvailabilityResultCard key={idx} result={inv.result} />;
+                          }
+                          if (inv.toolName === "initiateBooking" && !inv.result.error) {
+                            return <BookingCard key={idx} result={inv.result} onBook={setBookingRestaurantId} />;
+                          }
+                        }
+                        return null;
+                      }
+
+                      // ── AI SDK v4 legacy format (kept for compatibility) ──
                       if (part.type === "tool-call") {
                         const hasResult = (message.parts as MessagePart[]).some(
-                          (p) => p.type === "tool-result" && (p as ToolResultPart).toolCallId === part.toolCallId,
+                          (p) => p.type === "tool-result" && (p as ToolResultPart).toolCallId === (part as ToolCallPart).toolCallId,
                         );
                         if (hasResult) return null;
-                        return <ToolCallingBadge key={idx} toolName={part.toolName} />;
+                        return <ToolCallingBadge key={idx} toolName={(part as ToolCallPart).toolName} />;
                       }
                       if (part.type === "tool-result") {
-                        if (part.toolName === "checkAvailability") {
-                          return <AvailabilityResultCard key={idx} result={part.result} />;
+                        const r = part as ToolResultPart;
+                        if (r.toolName === "checkAvailability") {
+                          return <AvailabilityResultCard key={idx} result={r.result} />;
                         }
-                        if (part.toolName === "initiateBooking" && !part.result.error) {
-                          return <BookingCard key={idx} result={part.result} onBook={setBookingRestaurantId} />;
+                        if (r.toolName === "initiateBooking" && !r.result.error) {
+                          return <BookingCard key={idx} result={r.result} onBook={setBookingRestaurantId} />;
                         }
                       }
                       return null;
@@ -322,10 +364,10 @@ export function BaymaxChat({ userLocation, locationStatus }: BaymaxChatProps) {
                   </div>
                 ))}
 
-                {error && (
+                {(error || localError) && (
                   <div className="flex justify-start">
                     <div className="max-w-[84%] rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
-                      Connection issue. Please try again.
+                      {localError ?? error?.message ?? "Connection issue. Please try again."}
                     </div>
                   </div>
                 )}
@@ -396,7 +438,7 @@ export function BaymaxChat({ userLocation, locationStatus }: BaymaxChatProps) {
           onClick={() => setIsOpen((v) => !v)}
           whileTap={{ scale: 0.94 }}
           whileHover={{ scale: 1.06 }}
-          className="relative flex h-16 w-16 items-center justify-center rounded-[22px] bg-gradient-to-br from-[#FF6B35] to-[#FF4F5A] text-white shadow-[0_8px_32px_rgba(255,107,53,0.45)] transition-shadow hover:shadow-[0_12px_40px_rgba(255,107,53,0.55)]"
+          className="pointer-events-auto relative flex h-16 w-16 items-center justify-center rounded-[22px] bg-gradient-to-br from-[#FF6B35] to-[#FF4F5A] text-white shadow-[0_8px_32px_rgba(255,107,53,0.45)] transition-shadow hover:shadow-[0_12px_40px_rgba(255,107,53,0.55)]"
         >
           {/* Pulse ring */}
           <motion.span

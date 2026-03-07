@@ -173,7 +173,7 @@ export async function POST(request: Request) {
     // must not be forwarded to the model (it causes a validation error).
     const VALID_ROLES = new Set(["user", "assistant", "system", "tool"]);
     const safeMessages = messages.filter(
-      (m) => m.id !== "intro" && VALID_ROLES.has(m.role)
+      (m) => m.id !== "intro" && m.id !== "baymax-intro" && VALID_ROLES.has(m.role)
     );
 
     const result = streamText({
@@ -181,7 +181,7 @@ export async function POST(request: Request) {
       system: createSystemPrompt(userLocation),
       messages: await convertToModelMessages(safeMessages),
       tools: appTools,
-      temperature: 1,
+      temperature: 0.7,
     });
 
     return result.toUIMessageStreamResponse();

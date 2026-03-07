@@ -7,28 +7,28 @@ const footerSections = [
   {
     title: "Product",
     links: [
-      { label: "Explore Restaurants", href: "#explore-section" },
+      { label: "Explore Restaurants", href: "/#explore-section" },
       { label: "My Bookings", href: "/dashboard" },
-      { label: "AI Concierge", href: "#" },
-      { label: "Live Map", href: "#explore-section" },
+      { label: "AI Concierge", href: "/ai-concierge" },
+      { label: "Live Map", href: "/#explore-section" },
     ],
   },
   {
     title: "Company",
     links: [
-      { label: "About DineUp", href: "#about" },
-      { label: "How It Works", href: "#how-it-works" },
-      { label: "Careers", href: "#" },
-      { label: "Press Kit", href: "#" },
+      { label: "About DineUp", href: "/about" },
+      { label: "How It Works", href: "/how-it-works" },
+      { label: "Careers", href: "/careers" },
+      { label: "Press Kit", href: "/press" },
     ],
   },
   {
     title: "Support",
     links: [
-      { label: "Help Center", href: "#" },
-      { label: "Privacy Policy", href: "#" },
-      { label: "Terms of Service", href: "#" },
-      { label: "Contact Us", href: "#" },
+      { label: "Help Center", href: "/help-center" },
+      { label: "Privacy Policy", href: "/privacy-policy" },
+      { label: "Terms of Service", href: "/terms-of-service" },
+      { label: "Contact Us", href: "/contact" },
     ],
   },
 ];

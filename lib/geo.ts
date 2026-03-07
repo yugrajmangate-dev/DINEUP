@@ -7,8 +7,8 @@ export type UserLocation = {
 /** FC Road / Deccan Gymkhana area — used as the reference when the user
  *  hasn't granted location permission yet. */
 export const PUNE_CENTER: UserLocation = {
-  latitude: 18.5195,
-  longitude: 73.8397,
+  latitude: 18.5204,
+  longitude: 73.8567,
   accuracy: 0,
 };
 
@@ -30,22 +30,25 @@ function toRadians(value: number) {
  * For Pune:  latitude  ≈ 18.5 (north),  longitude ≈ 73.8 (east)
  */
 export function calculateDistanceKm(
-  from: UserLocation,
-  to: { latitude: number; longitude: number },
+  from: UserLocation | null | undefined,
+  to: { latitude: number; longitude: number } | null | undefined,
 ): number {
+  const safeFrom = from ?? PUNE_CENTER;
+  const safeTo = to ?? PUNE_CENTER;
+
   // Defensive guard: return 0 for obviously invalid coordinates
   if (
-    !isFinite(from.latitude) || !isFinite(from.longitude) ||
-    !isFinite(to.latitude)   || !isFinite(to.longitude)
+    !isFinite(safeFrom.latitude) || !isFinite(safeFrom.longitude) ||
+    !isFinite(safeTo.latitude)   || !isFinite(safeTo.longitude)
   ) {
-    console.warn("[geo] calculateDistanceKm received non-finite coordinates", { from, to });
+    console.warn("[geo] calculateDistanceKm received non-finite coordinates", { from: safeFrom, to: safeTo });
     return 0;
   }
 
-  const latitudeDelta  = toRadians(to.latitude  - from.latitude);
-  const longitudeDelta = toRadians(to.longitude - from.longitude);
-  const fromLatitude   = toRadians(from.latitude);
-  const toLatitude     = toRadians(to.latitude);
+  const latitudeDelta  = toRadians(safeTo.latitude  - safeFrom.latitude);
+  const longitudeDelta = toRadians(safeTo.longitude - safeFrom.longitude);
+  const fromLatitude   = toRadians(safeFrom.latitude);
+  const toLatitude     = toRadians(safeTo.latitude);
 
   const haversine =
     Math.sin(latitudeDelta  / 2) ** 2 +

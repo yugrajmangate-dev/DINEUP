@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import type { UserLocation } from "@/lib/geo";
+import { PUNE_CENTER, type UserLocation } from "@/lib/geo";
 
 export type GeolocationStatus =
   | "idle"
@@ -29,7 +29,7 @@ export function useGeolocation({
   autoStart = true,
   enableHighAccuracy = true,
 }: UseGeolocationOptions = {}): UseGeolocationResult {
-  const [location, setLocation] = useState<UserLocation | null>(null);
+  const [location, setLocation] = useState<UserLocation | null>(PUNE_CENTER);
   const [status, setStatus] = useState<GeolocationStatus>("idle");
   const [error, setError] = useState<string | null>(null);
   const watchIdRef = useRef<number | null>(null);
@@ -43,6 +43,7 @@ export function useGeolocation({
 
   const requestLocation = useCallback(() => {
     if (typeof navigator === "undefined" || !("geolocation" in navigator)) {
+      setLocation(PUNE_CENTER);
       setStatus("unsupported");
       setError("Geolocation is not supported in this browser.");
       return;
@@ -63,6 +64,7 @@ export function useGeolocation({
         setError(null);
       },
       (positionError) => {
+        setLocation(PUNE_CENTER);
         switch (positionError.code) {
           case positionError.PERMISSION_DENIED:
             setStatus("denied");
