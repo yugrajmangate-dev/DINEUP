@@ -443,7 +443,8 @@ type MapPanelProps = {
 
 /** Marker metadata stored per restaurant */
 type MarkerEntry = {
-  marker: unknown;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  marker: any;
   element: HTMLDivElement;
 };
 
@@ -461,8 +462,12 @@ function MapPanel({
   const mapContainerRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mapInstanceRef = useRef<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const ttRef = useRef<any>(null);
   const markersRef = useRef<Map<string, MarkerEntry>>(new Map());
   const mapLoadedRef = useRef(false);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const userMarkerRef = useRef<any>(null);
 
   const token = process.env.NEXT_PUBLIC_TOMTOM_API_KEY ?? "XrGZxbn0mSMFA47GFG6KuiD8bV7VtbMi";
 
@@ -495,6 +500,8 @@ function MapPanel({
     // Dynamic import avoids SSR / "window is not defined" errors
     import("@tomtom-international/web-sdk-maps").then((tt) => {
       if (cancelled || !mapContainerRef.current) return;
+
+      ttRef.current = tt;
 
       const center: [number, number] = currentRestaurant.restaurant.coordinates;
 
@@ -530,28 +537,22 @@ function MapPanel({
         window.setTimeout(resizeMap, 60);
         window.setTimeout(resizeMap, 220);
 
-        // Restaurant markers
-        restaurants.forEach(({ restaurant, distanceLabel }) => {
-          const isActive = restaurant.id === currentRestaurant.restaurant.id;
-          const el = buildMarkerDom(restaurant, distanceLabel, isActive);
-
-          el.addEventListener("click", () => setActiveRestaurantId(restaurant.id));
-
-          const marker = new tt.Marker({ element: el, anchor: "bottom" })
-            .setLngLat(restaurant.coordinates)
-            .addTo(map);
-
-          markers.set(restaurant.id, { marker, element: el });
+        syncRestaurantMarkers({
+          tt,
+          map,
+          entries: restaurants,
+          activeRestaurantId: currentRestaurant.restaurant.id,
+          markers,
+          setActiveRestaurantId,
         });
 
-        if (hasLiveLocation && userLocation) {
-          const dot = document.createElement("div");
-          dot.className = "tomtom-user-marker";
-          dot.innerHTML = `<span class="tomtom-user-pulse"></span><span class="tomtom-user-dot"></span>`;
-          new tt.Marker({ element: dot, anchor: "center" })
-            .setLngLat([userLocation.longitude, userLocation.latitude])
-            .addTo(map);
-        }
+        syncUserMarker({
+          tt,
+          map,
+          hasLiveLocation,
+          userLocation,
+          userMarkerRef,
+        });
       });
 
       resizeObserver = new ResizeObserver(() => {
@@ -571,13 +572,44 @@ function MapPanel({
       window.removeEventListener("resize", resizeMap);
       const currentMap = mapInstanceRef.current;
       if (currentMap) {
+        userMarkerRef.current?.remove?.();
+        userMarkerRef.current = null;
         currentMap.remove();
         mapInstanceRef.current = null;
         markers.clear();
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentRestaurant, hasLiveLocation, restaurants, setActiveRestaurantId, token, userLocation]);
+  }, [currentRestaurant, restaurants, setActiveRestaurantId, token]);
+
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    const tt = ttRef.current;
+    if (!map || !tt || !mapLoadedRef.current || !currentRestaurant) return;
+
+    syncRestaurantMarkers({
+      tt,
+      map,
+      entries: restaurants,
+      activeRestaurantId: currentRestaurant.restaurant.id,
+      markers: markersRef.current,
+      setActiveRestaurantId,
+    });
+  }, [currentRestaurant, restaurants, setActiveRestaurantId]);
+
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    const tt = ttRef.current;
+    if (!map || !tt || !mapLoadedRef.current) return;
+
+    syncUserMarker({
+      tt,
+      map,
+      hasLiveLocation,
+      userLocation,
+      userMarkerRef,
+    });
+  }, [hasLiveLocation, userLocation]);
 
   // ── Pan to hovered / selected restaurant ────────────────────────────
   useEffect(() => {
@@ -723,6 +755,89 @@ function buildMarkerDom(restaurant: Restaurant, distanceLabel: string, isActive:
   wrapper.appendChild(tail);
 
   return wrapper;
+}
+
+function syncRestaurantMarkers({
+  tt,
+  map,
+  entries,
+  activeRestaurantId,
+  markers,
+  setActiveRestaurantId,
+}: {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  tt: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  map: any;
+  entries: RestaurantWithDistance[];
+  activeRestaurantId: string;
+  markers: Map<string, MarkerEntry>;
+  setActiveRestaurantId: (id: string, mode?: "auto" | "manual") => void;
+}) {
+  const nextIds = new Set(entries.map(({ restaurant }) => restaurant.id));
+
+  markers.forEach((entry, id) => {
+    if (nextIds.has(id)) return;
+    entry.marker.remove();
+    markers.delete(id);
+  });
+
+  entries.forEach(({ restaurant, distanceLabel }) => {
+    const existing = markers.get(restaurant.id);
+
+    if (!existing) {
+      const el = buildMarkerDom(restaurant, distanceLabel, restaurant.id === activeRestaurantId);
+      el.addEventListener("click", () => setActiveRestaurantId(restaurant.id));
+
+      const marker = new tt.Marker({ element: el, anchor: "bottom" })
+        .setLngLat(restaurant.coordinates)
+        .addTo(map);
+
+      markers.set(restaurant.id, { marker, element: el });
+      return;
+    }
+
+    const distanceNode = existing.element.querySelector(".tomtom-marker-distance");
+    if (distanceNode) {
+      distanceNode.textContent = distanceLabel;
+    }
+
+    applyMarkerHighlight(existing.element, restaurant.id === activeRestaurantId);
+  });
+}
+
+function syncUserMarker({
+  tt,
+  map,
+  hasLiveLocation,
+  userLocation,
+  userMarkerRef,
+}: {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  tt: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  map: any;
+  hasLiveLocation: boolean;
+  userLocation: UserLocation | null;
+  userMarkerRef: React.MutableRefObject<any>;
+}) {
+  if (!hasLiveLocation || !userLocation) {
+    userMarkerRef.current?.remove?.();
+    userMarkerRef.current = null;
+    return;
+  }
+
+  if (!userMarkerRef.current) {
+    const dot = document.createElement("div");
+    dot.className = "tomtom-user-marker";
+    dot.innerHTML = `<span class="tomtom-user-pulse"></span><span class="tomtom-user-dot"></span>`;
+    userMarkerRef.current = new tt.Marker({ element: dot, anchor: "center" })
+      .setLngLat([userLocation.longitude, userLocation.latitude])
+      .addTo(map);
+    return;
+  }
+
+  userMarkerRef.current.setLngLat([userLocation.longitude, userLocation.latitude]);
 }
 
 function applyMarkerHighlight(element: HTMLDivElement, isActive: boolean): void {

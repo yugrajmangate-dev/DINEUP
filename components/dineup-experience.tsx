@@ -1,15 +1,24 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useEffect } from "react";
 import { onAuthStateChanged } from "firebase/auth";
 
-import { AuthModal } from "@/components/auth-modal";
-import { BaymaxChat } from "@/components/baymax-chat";
 import { DineUpShell } from "@/components/dineup-shell";
 import { useGeolocation } from "@/hooks/use-geolocation";
 import { auth } from "@/lib/firebase";
 import type { Restaurant } from "@/lib/restaurants";
 import { useAuthStore } from "@/store/auth-store";
+
+const BaymaxChat = dynamic(
+  () => import("@/components/baymax-chat").then((mod) => mod.BaymaxChat),
+  { ssr: false },
+);
+
+const AuthModal = dynamic(
+  () => import("@/components/auth-modal").then((mod) => mod.AuthModal),
+  { ssr: false },
+);
 
 export function DineUpExperience({ restaurants }: { restaurants: Restaurant[] }) {
   const geolocation = useGeolocation();
