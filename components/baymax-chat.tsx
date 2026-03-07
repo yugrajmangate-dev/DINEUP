@@ -39,11 +39,10 @@ interface ToolResultPart {
   type: "tool-result";
   toolCallId: string;
   toolName: string;
-  result: Record<string, unknown>;
+  result?: Record<string, unknown>;
+  output?: Record<string, unknown>;
 }
 
-// AI SDK v6 uses "tool-invocation" with a state field instead of separate
-// "tool-call" / "tool-result" parts (which were the AI SDK v4 format).
 interface ToolInvocationPart {
   type: "tool-invocation";
   toolInvocationId: string;
@@ -53,11 +52,56 @@ interface ToolInvocationPart {
   result?: Record<string, unknown>;
 }
 
+interface StaticToolUIPart {
+  type: `tool-${string}`;
+  toolCallId: string;
+  state:
+    | "input-streaming"
+    | "input-available"
+    | "approval-requested"
+    | "output-available"
+    | "output-error"
+    | "output-denied";
+  input?: Record<string, unknown>;
+  output?: Record<string, unknown>;
+  errorText?: string;
+  preliminary?: boolean;
+  title?: string;
+}
+
+interface DynamicToolUIPart {
+  type: "dynamic-tool";
+  toolName: string;
+  toolCallId: string;
+  state:
+    | "input-streaming"
+    | "input-available"
+    | "approval-requested"
+    | "output-available"
+    | "output-error"
+    | "output-denied";
+  input?: Record<string, unknown>;
+  output?: Record<string, unknown>;
+  errorText?: string;
+  preliminary?: boolean;
+  title?: string;
+}
+
 type MessagePart =
   | { type: "text"; text: string }
   | ToolCallPart
   | ToolResultPart
-  | ToolInvocationPart;
+  | ToolInvocationPart
+  | StaticToolUIPart
+  | DynamicToolUIPart;
+
+function isStaticToolUIPart(part: MessagePart): part is StaticToolUIPart {
+  return part.type.startsWith("tool-") && part.type !== "tool-call" && part.type !== "tool-result";
+}
+
+function getStaticToolName(part: StaticToolUIPart) {
+  return part.type.slice("tool-".length);
+}
 
 // ─── Starter message ──────────────────────────────────────────────────────────
 
@@ -243,10 +287,14 @@ function BookingCard({ result, onBook }: { result: Record<string, unknown>; onBo
 
 function renderToolResult(
   toolName: string,
-  result: Record<string, unknown>,
+  result: Record<string, unknown> | undefined,
   idx: number,
   onBook: (id: string) => void,
 ) {
+  if (!result) {
+    return <ToolErrorCard key={idx} title={toolName} message="Baymax completed the action, but no result payload was returned." />;
+  }
+
   const errorMessage = typeof result.error === "string"
     ? result.error
     : typeof result.message === "string" && result.ok === false
@@ -387,7 +435,7 @@ export function BaymaxChat({ userLocation, locationStatus }: BaymaxChatProps) {
                         );
                       }
 
-                      // ── AI SDK v6 format: tool-invocation with state ──────
+                      // ── AI SDK v6 older format: tool-invocation with state ─
                       if (part.type === "tool-invocation") {
                         const inv = part as ToolInvocationPart;
                         if (inv.state === "call" || inv.state === "partial-call") {
@@ -396,6 +444,49 @@ export function BaymaxChat({ userLocation, locationStatus }: BaymaxChatProps) {
                         if (inv.state === "result" && inv.result) {
                           return renderToolResult(inv.toolName, inv.result, idx, setBookingRestaurantId);
                         }
+                        return null;
+                      }
+
+                      // ── AI SDK v6 current format: tool-<name> / dynamic-tool ─
+                      if (isStaticToolUIPart(part)) {
+                        const toolName = getStaticToolName(part);
+
+                        if (part.state === "input-streaming" || part.state === "input-available" || part.state === "approval-requested") {
+                          return <ToolCallingBadge key={idx} toolName={toolName} />;
+                        }
+
+                        if (part.state === "output-error") {
+                          return <ToolErrorCard key={idx} title={toolName} message={part.errorText ?? "Baymax could not complete that action."} />;
+                        }
+
+                        if (part.state === "output-denied") {
+                          return <ToolErrorCard key={idx} title={toolName} message="This tool action was denied before completion." />;
+                        }
+
+                        if (part.state === "output-available") {
+                          return renderToolResult(toolName, part.output, idx, setBookingRestaurantId);
+                        }
+
+                        return null;
+                      }
+
+                      if (part.type === "dynamic-tool") {
+                        if (part.state === "input-streaming" || part.state === "input-available" || part.state === "approval-requested") {
+                          return <ToolCallingBadge key={idx} toolName={part.toolName} />;
+                        }
+
+                        if (part.state === "output-error") {
+                          return <ToolErrorCard key={idx} title={part.toolName} message={part.errorText ?? "Baymax could not complete that action."} />;
+                        }
+
+                        if (part.state === "output-denied") {
+                          return <ToolErrorCard key={idx} title={part.toolName} message="This tool action was denied before completion." />;
+                        }
+
+                        if (part.state === "output-available") {
+                          return renderToolResult(part.toolName, part.output, idx, setBookingRestaurantId);
+                        }
+
                         return null;
                       }
 
@@ -409,7 +500,7 @@ export function BaymaxChat({ userLocation, locationStatus }: BaymaxChatProps) {
                       }
                       if (part.type === "tool-result") {
                         const r = part as ToolResultPart;
-                        return renderToolResult(r.toolName, r.result, idx, setBookingRestaurantId);
+                        return renderToolResult(r.toolName, r.result ?? r.output, idx, setBookingRestaurantId);
                       }
                       return null;
                     })}
