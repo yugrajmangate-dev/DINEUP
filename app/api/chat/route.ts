@@ -168,19 +168,48 @@ export async function POST(request: Request) {
       userLocation?: UserLocation | null;
     } = await request.json();
 
+    // Strip UI-only / synthetic messages that are not valid model messages.
+    // The intro assistant message injected on the client has id="intro" and
+    // must not be forwarded to the model (it causes a validation error).
+    const VALID_ROLES = new Set(["user", "assistant", "system", "tool"]);
+    const safeMessages = messages.filter(
+      (m) => m.id !== "intro" && VALID_ROLES.has(m.role)
+    );
+
     const result = streamText({
       model: groq(process.env.GROQ_MODEL ?? "llama-3.3-70b-versatile"),
       system: createSystemPrompt(userLocation),
-      messages: await convertToModelMessages(messages),
+      messages: await convertToModelMessages(safeMessages),
       tools: appTools,
       temperature: 1,
     });
 
     return result.toUIMessageStreamResponse();
-  } catch (error) {
-    console.error("[Chat API Error]:", error);
+  } catch (error: unknown) {
+    // Deep-log the full error so we can diagnose Groq / SDK issues in the
+    // Vercel / Next.js server console without losing stack / cause details.
+    console.error(
+      "GROQ API FULL ERROR DETAILS:",
+      JSON.stringify(
+        error,
+        // JSON.stringify skips non-enumerable Error properties; handle them explicitly
+        (key, value) => {
+          if (value instanceof Error) {
+            return {
+              name: value.name,
+              message: value.message,
+              stack: value.stack,
+              cause: value.cause,
+            };
+          }
+          return value;
+        },
+        2
+      )
+    );
+    console.error("[Chat API] raw error object:", error);
     return Response.json(
-      { error: "Failed to communicate with gastronomy database." },
+      { error: "Failed to communicate with gastronomy model." },
       { status: 500 }
     );
   }

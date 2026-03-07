@@ -468,15 +468,28 @@ function MapPanel({
         ? activeRestaurant.restaurant.coordinates
         : [PUNE_CENTER.longitude, PUNE_CENTER.latitude];
 
-      const map = tt.map({
-        key: token,
-        container: mapContainerRef.current,
-        center,
-        zoom: 12.8,
-        language: "en-GB",
-      });
+      // Wrap map init in try/catch — TomTom SDK throws plain objects
+      // (not Error instances) on WebGL / key failures, which React's
+      // error boundary surfaces as "[object Object]"
+      let map: ReturnType<typeof tt.map>;
+      try {
+        map = tt.map({
+          key: token,
+          container: mapContainerRef.current,
+          center,
+          zoom: 12.8,
+          language: "en-GB",
+        });
+      } catch (err) {
+        console.error("[TomTom] map() init failed:", err);
+        return;
+      }
 
       mapInstanceRef.current = map;
+
+      map.on("error", (e: unknown) => {
+        console.error("[TomTom] map error event:", e);
+      });
 
       map.on("load", () => {
         if (cancelled) return;
@@ -507,6 +520,8 @@ function MapPanel({
             .addTo(map);
         }
       });
+    }).catch((err) => {
+      console.error("[TomTom] SDK import or map setup failed:", err);
     });
 
     return () => {
@@ -632,8 +647,11 @@ function MapPanel({
   // ── Live TomTom map ─────────────────────────────────────────────────
   return (
     <div className="glass-panel sticky top-24 min-h-[40rem] overflow-hidden rounded-4xl p-2">
-      <div className="relative h-[calc(100vh-8rem)] min-h-[38rem] overflow-hidden rounded-3xl border border-gray-200">
-        <div ref={mapContainerRef} className="h-full w-full" />
+      {/* TomTom requires the container to have a non-zero computed height before
+          map() is called. h-[calc(100vh-8rem)] provides that; min-h-[600px]
+          is the hard floor so the canvas is never zero-height on short viewports. */}
+      <div className="relative h-[calc(100vh-8rem)] min-h-[600px] overflow-hidden rounded-3xl border border-gray-200">
+        <div ref={mapContainerRef} className="absolute inset-0" />
 
         {/* Floating label */}
         <div className="pointer-events-none absolute left-4 top-4 rounded-full border border-gray-200 bg-white/90 px-4 py-2 text-xs text-slate-500 shadow-sm backdrop-blur-md">

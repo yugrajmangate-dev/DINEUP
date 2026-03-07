@@ -18,17 +18,37 @@ function toRadians(value: number) {
   return (value * Math.PI) / 180;
 }
 
+/**
+ * Haversine great-circle distance between two geographic points.
+ *
+ * IMPORTANT – coordinate-order contract:
+ *   • `from` and `to` always use **named** `{ latitude, longitude }` fields.
+ *   • Restaurant `coordinates` are stored as `[longitude, latitude]` (GeoJSON /
+ *     TomTom order). At the call-site the caller MUST unpack them as:
+ *       calculateDistanceKm(ref, { latitude: coords[1], longitude: coords[0] })
+ *
+ * For Pune:  latitude  ≈ 18.5 (north),  longitude ≈ 73.8 (east)
+ */
 export function calculateDistanceKm(
   from: UserLocation,
   to: { latitude: number; longitude: number },
-) {
-  const latitudeDelta = toRadians(to.latitude - from.latitude);
+): number {
+  // Defensive guard: return 0 for obviously invalid coordinates
+  if (
+    !isFinite(from.latitude) || !isFinite(from.longitude) ||
+    !isFinite(to.latitude)   || !isFinite(to.longitude)
+  ) {
+    console.warn("[geo] calculateDistanceKm received non-finite coordinates", { from, to });
+    return 0;
+  }
+
+  const latitudeDelta  = toRadians(to.latitude  - from.latitude);
   const longitudeDelta = toRadians(to.longitude - from.longitude);
-  const fromLatitude = toRadians(from.latitude);
-  const toLatitude = toRadians(to.latitude);
+  const fromLatitude   = toRadians(from.latitude);
+  const toLatitude     = toRadians(to.latitude);
 
   const haversine =
-    Math.sin(latitudeDelta / 2) ** 2 +
+    Math.sin(latitudeDelta  / 2) ** 2 +
     Math.cos(fromLatitude) *
       Math.cos(toLatitude) *
       Math.sin(longitudeDelta / 2) ** 2;
@@ -40,10 +60,10 @@ export function calculateDistanceKm(
 }
 
 export function formatDistanceLabel(distanceKm: number, estimated = false) {
+  if (!isFinite(distanceKm) || distanceKm < 0) return "distance unknown";
   const prefix = estimated ? "~" : "";
   if (distanceKm < 1) {
     return `${prefix}${Math.max(50, Math.round(distanceKm * 1000 / 50) * 50)} m away`;
   }
-
   return `${prefix}${distanceKm.toFixed(1)} km away`;
 }
