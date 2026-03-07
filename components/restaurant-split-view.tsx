@@ -271,7 +271,11 @@ type RestaurantCardProps = {
 function RestaurantCard({ restaurant, distanceLabel, isActive, onHover, onBookNow }: RestaurantCardProps) {
   const Icon = iconMap[restaurant.icon];
   const [currentImg, setCurrentImg] = useState(0);
+  const [imgError, setImgError] = useState(false);
   const images = restaurant.food_images?.length ? restaurant.food_images : [restaurant.image];
+  const currentSrc = imgError
+    ? restaurant.image   // fall back to hero image on carousel image failure
+    : images[currentImg];
 
   const prev = () => setCurrentImg((i) => (i - 1 + images.length) % images.length);
   const next = () => setCurrentImg((i) => (i + 1) % images.length);
@@ -305,11 +309,12 @@ function RestaurantCard({ restaurant, distanceLabel, isActive, onHover, onBookNo
             className="absolute inset-0"
           >
             <Image
-              src={images[currentImg]}
+              src={currentSrc}
               alt={`${restaurant.name} dish ${currentImg + 1}`}
               fill
               className="object-cover"
               sizes="(min-width: 1280px) 22vw, (min-width: 1024px) 32vw, 90vw"
+              onError={() => setImgError(true)}
             />
           </motion.div>
         </AnimatePresence>

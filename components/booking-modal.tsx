@@ -92,6 +92,7 @@ function BookingModalPanel({
   const [slotMessage, setSlotMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isConfirmed, setIsConfirmed] = useState(false);
+  const [heroImgError, setHeroImgError] = useState(false);
   const closeRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -201,7 +202,9 @@ function BookingModalPanel({
     closeRef.current = window.setTimeout(onClose, 1600);
   };
 
-  const heroImage = restaurant.food_images?.[0] ?? restaurant.image;
+  const heroImage = heroImgError
+    ? restaurant.image   // fall back to main image if food_images[0] fails
+    : (restaurant.food_images?.[0] ?? restaurant.image);
 
   return (
     <motion.div
@@ -227,6 +230,7 @@ function BookingModalPanel({
             fill
             className="object-cover"
             sizes="672px"
+            onError={() => setHeroImgError(true)}
           />
           {/* Deep gradient overlay so text is always readable */}
           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
