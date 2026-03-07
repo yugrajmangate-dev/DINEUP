@@ -444,6 +444,7 @@ function MapPanel({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mapInstanceRef = useRef<any>(null);
   const markersRef = useRef<Map<string, MarkerEntry>>(new Map());
+  const mapLoadedRef = useRef(false);
 
   const token = process.env.NEXT_PUBLIC_TOMTOM_API_KEY;
 
@@ -472,7 +473,6 @@ function MapPanel({
         container: mapContainerRef.current,
         center,
         zoom: 12.8,
-        style: `https://api.tomtom.com/style/2/custom/style/dG9tdG9tQEBAd2lpSkI0Q0t3bzFOM2FUdDs7amFsdXRibEhTdVlmMktzeWc=.json?key=${token}`,
         language: "en-GB",
       });
 
@@ -480,6 +480,7 @@ function MapPanel({
 
       map.on("load", () => {
         if (cancelled) return;
+        mapLoadedRef.current = true;
 
         // Restaurant markers
         restaurants.forEach(({ restaurant, distanceLabel }) => {
@@ -510,6 +511,7 @@ function MapPanel({
 
     return () => {
       cancelled = true;
+      mapLoadedRef.current = false;
       const currentMap = mapInstanceRef.current;
       if (currentMap) {
         currentMap.remove();
@@ -523,16 +525,13 @@ function MapPanel({
   // ── Pan to hovered / selected restaurant ────────────────────────────
   useEffect(() => {
     const map = mapInstanceRef.current;
-    if (!map || !activeRestaurant) return;
+    if (!map || !activeRestaurant || !mapLoadedRef.current) return;
 
-    map.panTo(activeRestaurant.restaurant.coordinates, {
+    map.easeTo({
+      center: activeRestaurant.restaurant.coordinates,
+      zoom: selectionMode === "manual" ? 14.2 : map.getZoom(),
       duration: 800,
     });
-
-    // Zoom slightly closer on manual selection
-    if (selectionMode === "manual") {
-      map.zoomTo(14.2, { duration: 800 });
-    }
 
     // Highlight active marker, un-highlight the rest
     markersRef.current.forEach(({ element }, id) => {

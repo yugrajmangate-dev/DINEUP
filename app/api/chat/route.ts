@@ -169,7 +169,7 @@ export async function POST(request: Request) {
     } = await request.json();
 
     const result = streamText({
-      model: groq(process.env.GROQ_MODEL ?? "openai/gpt-oss-20b"),
+      model: groq(process.env.GROQ_MODEL ?? "llama-3.3-70b-versatile"),
       system: createSystemPrompt(userLocation),
       messages: await convertToModelMessages(messages),
       tools: appTools,
