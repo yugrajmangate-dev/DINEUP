@@ -11,7 +11,6 @@ import {
   Loader2,
   MapPin,
   Trash2,
-  UserCircle,
   Users,
 } from "lucide-react";
 import Link from "next/link";

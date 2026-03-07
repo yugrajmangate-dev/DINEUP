@@ -9,12 +9,34 @@ import { z } from "zod";
 
 import type { UserLocation } from "@/lib/geo";
 import { restaurants } from "@/lib/restaurants";
+import {
+  bookTable,
+  checkAvailability,
+  getRestaurants,
+} from "@/lib/mock-db";
 
 export const maxDuration = 45;
 
 // ─── System prompt ────────────────────────────────────────────────────────────
 
-const inventoryContext = JSON.stringify(restaurants, null, 2);
+function buildInventoryContext() {
+  const dbRestaurants = getRestaurants();
+  const merged = restaurants.map((restaurant) => {
+    const live = dbRestaurants.find((item) => item.id === restaurant.id);
+    return {
+      id: restaurant.id,
+      name: restaurant.name,
+      cuisine: restaurant.cuisine,
+      neighborhood: restaurant.neighborhood,
+      price: restaurant.price,
+      rating: restaurant.rating,
+      operating_hours: live?.operating_hours ?? "Not specified",
+      available_slots: live?.available_slots ?? [],
+    };
+  });
+
+  return JSON.stringify(merged, null, 2);
+}
 
 function formatLocationContext(userLocation: UserLocation | null | undefined) {
   if (!userLocation) {
@@ -32,8 +54,9 @@ function createSystemPrompt(userLocation: UserLocation | null | undefined) {
     "You have two tools available:",
     "• Use `checkAvailability` when the user asks if a specific restaurant has tables free.",
     "• Use `initiateBooking` when the user explicitly says they want to book or reserve.",
+    "Always pass booking/check times in 24-hour HH:mm format when possible (e.g. 20:00).",
     formatLocationContext(userLocation),
-    "\nRestaurant inventory:\n" + inventoryContext,
+    "\nRestaurant inventory:\n" + buildInventoryContext(),
   ].join("\n\n");
 }
 
@@ -47,32 +70,23 @@ const appTools = {
       restaurantId: z.string().describe("The `id` field of the restaurant from the inventory."),
       date: z
         .string()
+        .optional()
         .describe("The requested date in YYYY-MM-DD format, e.g. '2026-03-08'."),
       time: z
         .string()
-        .describe("The requested time slot exactly as it appears in reservationSlots, e.g. '8:00 PM'."),
+        .describe("The requested time slot, preferably in HH:mm (24-hour) e.g. '20:00'."),
     }),
     execute: async ({ restaurantId, date, time }) => {
-      const restaurant = restaurants.find((r) => r.id === restaurantId);
-      if (!restaurant) {
-        return {
-          available: false,
-          message: `Restaurant '${restaurantId}' not found in the inventory.`,
-        };
-      }
-
-      // Simulate real availability: 70 % chance of open seat.
-      const available = Math.random() > 0.3;
-
+      const result = checkAvailability(restaurantId, time);
       return {
-        restaurantId: restaurant.id,
-        restaurantName: restaurant.name,
-        date,
+        ...result,
+        date: date ?? null,
         time,
-        available,
-        message: available
-          ? `Great news — ${restaurant.name} has tables available on ${date} at ${time}.`
-          : `${restaurant.name} is fully booked on ${date} at ${time}. Consider an alternative slot: ${restaurant.reservationSlots.filter((s) => s !== time).join(", ") || "—"}.`,
+        message: result.ok
+          ? result.available
+            ? `Great news — ${result.restaurantName} has tables available${date ? ` on ${date}` : ""} at ${result.requestedSlot}.`
+            : `${result.restaurantName} is fully booked${date ? ` on ${date}` : ""} at ${result.requestedSlot}. Consider: ${result.remainingSlots.join(", ") || "no more slots today"}.`
+          : result.message,
       };
     },
   }),
@@ -84,21 +98,41 @@ const appTools = {
       restaurantId: z
         .string()
         .describe("The `id` field of the restaurant the user wants to book."),
+      time: z
+        .string()
+        .describe("Requested reservation time in HH:mm where possible, e.g. '20:00'."),
+      partySize: z
+        .number()
+        .int()
+        .min(1)
+        .max(12)
+        .describe("How many guests are included in the booking."),
+      date: z
+        .string()
+        .optional()
+        .describe("Optional requested date in YYYY-MM-DD format."),
     }),
-    execute: async ({ restaurantId }) => {
+    execute: async ({ restaurantId, time, partySize, date }) => {
       const restaurant = restaurants.find((r) => r.id === restaurantId);
       if (!restaurant) {
         return { error: `Restaurant '${restaurantId}' not found.` };
       }
 
+      const booking = bookTable(restaurantId, time, partySize);
+
       return {
+        booked: booking.booked,
+        bookingMessage: booking.message,
+        requestedSlot: booking.requestedSlot,
+        partySize: booking.partySize,
+        date: date ?? null,
         restaurantId: restaurant.id,
         restaurantName: restaurant.name,
         neighborhood: restaurant.neighborhood,
         cuisine: restaurant.cuisine,
         rating: restaurant.rating,
         price: restaurant.price,
-        slots: restaurant.reservationSlots,
+        slots: booking.remainingSlots,
         address: restaurant.address,
         image: restaurant.image,
       };

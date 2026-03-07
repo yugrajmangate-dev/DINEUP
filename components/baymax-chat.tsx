@@ -103,7 +103,10 @@ function BookingCard({ result, onBook }: { result: Record<string, unknown>; onBo
   const cuisine = result.cuisine as string;
   const rating = result.rating as number;
   const price = result.price as string;
-  const slots = result.slots as string[];
+  const slots = (result.slots as string[]) ?? [];
+  const booked = Boolean(result.booked);
+  const bookingMessage = result.bookingMessage as string | undefined;
+  const requestedSlot = result.requestedSlot as string | undefined;
 
   return (
     <div className="flex justify-start">
@@ -131,7 +134,9 @@ function BookingCard({ result, onBook }: { result: Record<string, unknown>; onBo
 
         {/* Time slots */}
         <div className="px-4 py-3">
-          <p className="mb-2 text-[10px] uppercase tracking-[0.2em] text-slate-400">Available tonight</p>
+          <p className="mb-2 text-[10px] uppercase tracking-[0.2em] text-slate-400">
+            {booked ? "Remaining slots" : "Available tonight"}
+          </p>
           <div className="flex flex-wrap gap-1.5">
             {slots.map((slot) => (
               <span key={slot} className="flex items-center gap-1 rounded-xl border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs font-medium text-slate-700">
@@ -141,16 +146,34 @@ function BookingCard({ result, onBook }: { result: Record<string, unknown>; onBo
           </div>
         </div>
 
+        {bookingMessage && (
+          <div className="px-4 pb-2">
+            <div className={cn(
+              "rounded-xl border px-3 py-2 text-xs",
+              booked ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-orange-200 bg-orange-50 text-orange-700",
+            )}>
+              {bookingMessage}
+            </div>
+          </div>
+        )}
+
         {/* CTA */}
-        <div className="px-4 pb-4">
-          <button
-            type="button"
-            onClick={() => onBook(restaurantId)}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#FF6B35] py-2.5 text-sm font-bold text-white shadow-[0_4px_16px_rgba(255,107,53,0.3)] hover:shadow-[0_8px_24px_rgba(255,107,53,0.4)] active:scale-[0.98] transition-all"
-          >
-            <CalendarCheck className="h-4 w-4" />Reserve table
-          </button>
-        </div>
+        {!booked && (
+          <div className="px-4 pb-4">
+            <button
+              type="button"
+              onClick={() => onBook(restaurantId)}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#FF6B35] py-2.5 text-sm font-bold text-white shadow-[0_4px_16px_rgba(255,107,53,0.3)] hover:shadow-[0_8px_24px_rgba(255,107,53,0.4)] active:scale-[0.98] transition-all"
+            >
+              <CalendarCheck className="h-4 w-4" />Reserve table
+            </button>
+          </div>
+        )}
+        {booked && requestedSlot && (
+          <div className="px-4 pb-4 text-xs font-medium text-emerald-700">
+            Confirmed at {requestedSlot}.
+          </div>
+        )}
       </motion.div>
     </div>
   );
@@ -174,8 +197,8 @@ export function BaymaxChat({ userLocation, locationStatus }: BaymaxChatProps) {
 
   const quickPrompts = useMemo(() => [
     "Great dinner nearby",
-    "Reserve Terra Bloom",
-    "Is Cinder House free?",
+    "Reserve Toit Brewery at 8 PM for 2 people",
+    "Is Cafe Good Luck free at 8 PM?",
   ], []);
 
   const transport = useMemo(() => new DefaultChatTransport({ api: "/api/chat" }), []);

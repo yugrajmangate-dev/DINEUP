@@ -49,6 +49,16 @@ function buildReservationDates(): ReservationDate[] {
   });
 }
 
+function formatSlotLabel(slot: string) {
+  const match = slot.match(/^(\d{2}):(\d{2})$/);
+  if (!match) return slot;
+  const hour24 = Number.parseInt(match[1], 10);
+  const minute = match[2];
+  const meridiem = hour24 >= 12 ? "PM" : "AM";
+  const hour12 = hour24 % 12 || 12;
+  return `${hour12}:${minute} ${meridiem}`;
+}
+
 export function BookingModal({ restaurant, distanceLabel, isOpen, onClose }: BookingModalProps) {
   return (
     <AnimatePresence>
@@ -77,7 +87,9 @@ function BookingModalPanel({
   const reservationDates = useMemo(() => buildReservationDates(), []);
   const [partySize, setPartySize] = useState(2);
   const [selectedDate, setSelectedDate] = useState<string>(reservationDates[0]?.key ?? "");
-  const [selectedTime, setSelectedTime] = useState<string>(restaurant.reservationSlots[0] ?? "");
+  const [availableSlots, setAvailableSlots] = useState<string[]>([]);
+  const [selectedTime, setSelectedTime] = useState<string>("");
+  const [slotMessage, setSlotMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isConfirmed, setIsConfirmed] = useState(false);
   const closeRef = useRef<number | null>(null);
@@ -93,22 +105,96 @@ function BookingModalPanel({
     };
   }, [onClose]);
 
+  useEffect(() => {
+    let active = true;
+
+    const loadSlots = async () => {
+      try {
+        const response = await fetch(
+          `/api/reservations?restaurantId=${encodeURIComponent(restaurant.id)}`,
+          { cache: "no-store" },
+        );
+
+        if (!response.ok) {
+          if (!active) return;
+          setAvailableSlots([]);
+          setSelectedTime("");
+          setSlotMessage("Unable to load live slots right now.");
+          return;
+        }
+
+        const payload = (await response.json()) as { slots?: string[] };
+        const slots = payload.slots ?? [];
+        if (!active) return;
+
+        setAvailableSlots(slots);
+        setSelectedTime(slots[0] ?? "");
+        setSlotMessage(slots.length ? null : "No live slots available for now.");
+      } catch {
+        if (!active) return;
+        setAvailableSlots([]);
+        setSelectedTime("");
+        setSlotMessage("Unable to load live slots right now.");
+      }
+    };
+
+    void loadSlots();
+
+    return () => {
+      active = false;
+    };
+  }, [restaurant.id]);
+
   const confirmReservation = async () => {
     if (!selectedTime || isSubmitting || isConfirmed) return;
     if (!user) { onClose(); openAuthModal(); return; }
     setIsSubmitting(true);
+
     try {
+      const reservationResponse = await fetch("/api/reservations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          restaurantId: restaurant.id,
+          time: selectedTime,
+          partySize,
+        }),
+      });
+
+      const reservationPayload = (await reservationResponse.json()) as {
+        message?: string;
+        remainingSlots?: string[];
+      };
+
+      if (!reservationResponse.ok) {
+        if (reservationResponse.status === 409) {
+          const remainingSlots = reservationPayload.remainingSlots ?? [];
+          setAvailableSlots(remainingSlots);
+          setSelectedTime(remainingSlots[0] ?? "");
+          setSlotMessage(reservationPayload.message ?? "That slot was just taken. Please pick another time.");
+          setIsSubmitting(false);
+          return;
+        }
+
+        setSlotMessage(reservationPayload.message ?? "Booking failed. Please try another slot.");
+        setIsSubmitting(false);
+        return;
+      }
+
+      setSlotMessage(null);
       await addDoc(collection(db, "bookings"), {
         userId: user.uid,
         restaurantId: restaurant.id,
         restaurantName: restaurant.name,
         neighborhood: restaurant.neighborhood,
         date: selectedDate,
-        time: selectedTime,
+        time: formatSlotLabel(selectedTime),
         partySize,
         status: "confirmed",
         createdAt: serverTimestamp(),
       });
+
+      setAvailableSlots((previous) => previous.filter((slot) => slot !== selectedTime));
     } catch { /* non-fatal */ }
     setIsSubmitting(false);
     setIsConfirmed(true);
@@ -270,7 +356,7 @@ function BookingModalPanel({
                 <CalendarDays className="mr-1 inline h-3 w-3" />Time slot
               </p>
               <div className="flex flex-wrap gap-2">
-                {restaurant.reservationSlots.map((slot) => {
+                {availableSlots.map((slot) => {
                   const active = selectedTime === slot;
                   return (
                     <button
@@ -284,11 +370,14 @@ function BookingModalPanel({
                           : "border-gray-200 bg-white text-slate-700 hover:border-orange-200 hover:bg-orange-50",
                       )}
                     >
-                      {slot}
+                      {formatSlotLabel(slot)}
                     </button>
                   );
                 })}
               </div>
+              {slotMessage && (
+                <p className="mt-2 text-xs text-orange-600">{slotMessage}</p>
+              )}
             </div>
           </div>
 
