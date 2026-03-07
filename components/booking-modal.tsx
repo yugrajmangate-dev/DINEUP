@@ -284,7 +284,38 @@ function BookingModalPanel({
 
         {/* ── BODY ────────────────────────────────────────────────────────────── */}
         <div className="px-6 py-5 sm:px-7">
+          {!user ? (
+            <div className="space-y-5">
+              <div className="rounded-3xl border border-orange-200 bg-orange-50 p-5">
+                <p className="text-[10px] uppercase tracking-[0.28em] text-orange-500">Authentication required</p>
+                <h3 className="mt-2 font-display text-2xl text-slate-900">Sign in before booking.</h3>
+                <p className="mt-2 text-sm leading-7 text-slate-600">
+                  Your reservation is linked to your DineUp account so it can appear in My Bookings and be managed later.
+                </p>
+              </div>
 
+              <div className="grid gap-3 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    openAuthModal();
+                  }}
+                  className="flex h-14 items-center justify-center gap-2 rounded-2xl bg-[#FF6B35] text-sm font-bold text-white shadow-[0_8px_30px_rgba(255,107,53,0.35)] hover:shadow-[0_14px_40px_rgba(255,107,53,0.45)] active:scale-[0.98]"
+                >
+                  <LogIn className="h-4 w-4" /> Sign in to continue
+                </button>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="flex h-14 items-center justify-center rounded-2xl border border-gray-200 bg-white text-sm font-semibold text-slate-700 hover:border-orange-200 hover:bg-orange-50 active:scale-[0.98]"
+                >
+                  Maybe later
+                </button>
+              </div>
+            </div>
+          ) : (
+          <>
           {/* DATE SELECTOR */}
           <div className="mb-5">
             <p className="mb-3 text-[10px] uppercase tracking-[0.28em] text-slate-400">Select date</p>
@@ -407,10 +438,6 @@ function BookingModalPanel({
                 <motion.span key="wait" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
                   Securing your table…
                 </motion.span>
-              ) : !user ? (
-                <motion.span key="auth" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="flex items-center gap-2">
-                  <LogIn className="h-5 w-5" /> Sign in to reserve
-                </motion.span>
               ) : (
                 <motion.span key="idle" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
                   Confirm Reservation
@@ -418,6 +445,8 @@ function BookingModalPanel({
               )}
             </AnimatePresence>
           </motion.button>
+          </>
+          )}
         </div>
       </motion.div>
     </motion.div>

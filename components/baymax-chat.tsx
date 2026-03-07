@@ -22,6 +22,7 @@ import type { GeolocationStatus } from "@/hooks/use-geolocation";
 import type { UserLocation } from "@/lib/geo";
 import { restaurants } from "@/lib/restaurants";
 import { BookingModal } from "@/components/booking-modal";
+import { useAuthStore } from "@/store/auth-store";
 import { cn } from "@/lib/utils";
 import { useMapStore } from "@/store/map-store";
 
@@ -126,6 +127,7 @@ function BookingCard({ result, onBook }: { result: Record<string, unknown>; onBo
 
   // Look up coordinates for the "View on Map" button
   const setMapTarget = useMapStore((s) => s.setMapTarget);
+  const { user, openAuthModal } = useAuthStore();
   const restaurant = restaurants.find((r) => r.id === restaurantId);
 
   return (
@@ -177,15 +179,29 @@ function BookingCard({ result, onBook }: { result: Record<string, unknown>; onBo
           </div>
         )}
 
+        {!booked && !user && (
+          <div className="px-4 pb-2">
+            <div className="rounded-xl border border-orange-200 bg-orange-50 px-3 py-2 text-xs text-orange-700">
+              Sign in first to continue to the booking flow.
+            </div>
+          </div>
+        )}
+
         {/* CTA row */}
         <div className="px-4 pb-4 flex gap-2">
           {!booked && (
             <button
               type="button"
-              onClick={() => onBook(restaurantId)}
+              onClick={() => {
+                if (!user) {
+                  openAuthModal();
+                  return;
+                }
+                onBook(restaurantId);
+              }}
               className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#FF6B35] py-2.5 text-sm font-bold text-white shadow-[0_4px_16px_rgba(255,107,53,0.3)] hover:shadow-[0_8px_24px_rgba(255,107,53,0.4)] active:scale-[0.98] transition-all"
             >
-              <CalendarCheck className="h-4 w-4" />Reserve table
+              <CalendarCheck className="h-4 w-4" />{user ? "Reserve table" : "Sign in to reserve"}
             </button>
           )}
           {booked && requestedSlot && (
