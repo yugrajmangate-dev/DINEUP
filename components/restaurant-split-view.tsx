@@ -1,15 +1,8 @@
-﻿"use client";
+"use client";
 
 import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, type Variants } from "framer-motion";
-import Map, {
-  FullscreenControl,
-  Marker,
-  NavigationControl,
-  Popup,
-  type MapRef,
-} from "react-map-gl/mapbox";
 import {
   ArrowUpRight,
   CalendarDays,
@@ -32,6 +25,7 @@ import { calculateDistanceKm, formatDistanceLabel, PUNE_CENTER } from "@/lib/geo
 import type { GeolocationStatus } from "@/hooks/use-geolocation";
 import type { Restaurant, RestaurantIcon } from "@/lib/restaurants";
 import { cn } from "@/lib/utils";
+import { useMapStore } from "@/store/map-store";
 
 // ─── Icon map ─────────────────────────────────────────────────────────────────
 
@@ -115,7 +109,6 @@ export function RestaurantSplitView({
   const [activeFilter, setActiveFilter] = useState<FilterId>("all");
 
   const restaurantsWithDistance = useMemo<RestaurantWithDistance[]>(() => {
-    // Use real GPS location if granted; fall back to central-Pune reference.
     const reference = userLocation ?? PUNE_CENTER;
     const estimated = !userLocation;
 
@@ -131,7 +124,6 @@ export function RestaurantSplitView({
       };
     });
 
-    // Always sort nearest-first (from real location or city-centre).
     return mapped.sort((a, b) => a.distanceKm - b.distanceKm);
   }, [restaurants, userLocation]);
 
@@ -169,7 +161,7 @@ export function RestaurantSplitView({
                 type="button"
                 onClick={() => {
                   setActiveFilter(id);
-                  setSelectionMode("auto"); // re-focus map on the new list's top item
+                  setSelectionMode("auto");
                 }}
                 className={cn(
                   "inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-medium transition-all active:scale-95 whitespace-nowrap",
@@ -344,7 +336,6 @@ function RestaurantCard({ restaurant, distanceLabel, isActive, onHover, onBookNo
             >
               <ChevronRight className="h-4 w-4" />
             </button>
-            {/* Dot indicators */}
             <div className="absolute bottom-2 left-0 right-0 z-10 flex justify-center gap-1">
               {images.map((_, i) => (
                 <button
@@ -362,7 +353,7 @@ function RestaurantCard({ restaurant, distanceLabel, isActive, onHover, onBookNo
         )}
       </div>
 
-      {/* ── Card body — info below image ────────────────────────────────── */}
+      {/* ── Card body ───────────────────────────────────────────────────── */}
       <div className="p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 space-y-0.5">
@@ -422,7 +413,7 @@ function RestaurantCard({ restaurant, distanceLabel, isActive, onHover, onBookNo
   );
 }
 
-// ─── Map panel ────────────────────────────────────────────────────────────────
+// ─── TomTom Map panel ─────────────────────────────────────────────────────────
 
 type MapPanelProps = {
   activeRestaurant: RestaurantWithDistance | undefined;
@@ -434,6 +425,12 @@ type MapPanelProps = {
   userLocation: UserLocation | null;
 };
 
+/** Marker metadata stored per restaurant */
+type MarkerEntry = {
+  marker: unknown;
+  element: HTMLDivElement;
+};
+
 function MapPanel({
   activeRestaurant,
   locationStatus,
@@ -443,34 +440,131 @@ function MapPanel({
   setActiveRestaurantId,
   userLocation,
 }: MapPanelProps) {
-  const mapRef = useRef<MapRef | null>(null);
-  const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mapInstanceRef = useRef<any>(null);
+  const markersRef = useRef<Map<string, MarkerEntry>>(new Map());
 
+  const token = process.env.NEXT_PUBLIC_TOMTOM_API_KEY;
+
+  // Listen to Baymax "View on Map" triggers via the shared store
+  const mapTarget = useMapStore((s) => s.mapTarget);
+  const flySequence = useMapStore((s) => s.flySequence);
+  const clearMapTarget = useMapStore((s) => s.clearMapTarget);
+
+  // ── Initialize TomTom map (runs once when token is present) ─────────
   useEffect(() => {
-    if (!mapRef.current || !activeRestaurant) return;
+    if (!token || !mapContainerRef.current || mapInstanceRef.current) return;
 
-    // Always fly to the selected restaurant (user-location marker is shown
-    // separately; centring on it would disconnect the map from the cards).
-    mapRef.current.flyTo({
-      center: activeRestaurant.restaurant.coordinates,
-      zoom: selectionMode === "manual" ? 14.2 : 13.0,
-      duration: 1400,
-      essential: true,
-      easing: (v) => v * v * (3 - 2 * v),
+    let cancelled = false;
+    const markers = markersRef.current;
+
+    // Dynamic import avoids SSR / "window is not defined" errors
+    import("@tomtom-international/web-sdk-maps").then((tt) => {
+      if (cancelled || !mapContainerRef.current) return;
+
+      const center: [number, number] = activeRestaurant
+        ? activeRestaurant.restaurant.coordinates
+        : [PUNE_CENTER.longitude, PUNE_CENTER.latitude];
+
+      const map = tt.map({
+        key: token,
+        container: mapContainerRef.current,
+        center,
+        zoom: 12.8,
+        style: `https://api.tomtom.com/style/2/custom/style/dG9tdG9tQEBAd2lpSkI0Q0t3bzFOM2FUdDs7amFsdXRibEhTdVlmMktzeWc=.json?key=${token}`,
+        language: "en-GB",
+      });
+
+      mapInstanceRef.current = map;
+
+      map.on("load", () => {
+        if (cancelled) return;
+
+        // Restaurant markers
+        restaurants.forEach(({ restaurant, distanceLabel }) => {
+          const isActive = restaurant.id === activeRestaurant?.restaurant.id;
+          const el = buildMarkerDom(restaurant, distanceLabel, isActive);
+
+          el.addEventListener("mouseenter", () => setActiveRestaurantId(restaurant.id));
+          el.addEventListener("click", () => setActiveRestaurantId(restaurant.id));
+
+          const marker = new tt.Marker({ element: el, anchor: "bottom" })
+            .setLngLat(restaurant.coordinates)
+            .addTo(map);
+
+          markers.set(restaurant.id, { marker, element: el });
+        });
+
+        // User dot
+        if (userLocation) {
+          const dot = document.createElement("div");
+          dot.className = "tomtom-user-marker";
+          dot.innerHTML = `<span class="tomtom-user-pulse"></span><span class="tomtom-user-dot"></span>`;
+          new tt.Marker({ element: dot, anchor: "center" })
+            .setLngLat([userLocation.longitude, userLocation.latitude])
+            .addTo(map);
+        }
+      });
+    });
+
+    return () => {
+      cancelled = true;
+      const currentMap = mapInstanceRef.current;
+      if (currentMap) {
+        currentMap.remove();
+        mapInstanceRef.current = null;
+        markers.clear();
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
+  // ── Pan to hovered / selected restaurant ────────────────────────────
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map || !activeRestaurant) return;
+
+    map.panTo(activeRestaurant.restaurant.coordinates, {
+      duration: 800,
+    });
+
+    // Zoom slightly closer on manual selection
+    if (selectionMode === "manual") {
+      map.zoomTo(14.2, { duration: 800 });
+    }
+
+    // Highlight active marker, un-highlight the rest
+    markersRef.current.forEach(({ element }, id) => {
+      applyMarkerHighlight(element, id === activeRestaurant.restaurant.id);
     });
   }, [activeRestaurant, selectionMode]);
 
-  // ── No-token fallback ──────────────────────────────────────────────────
+  // ── Fly to Baymax "View on Map" target ──────────────────────────────
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map || !mapTarget) return;
+
+    map.flyTo({
+      center: [mapTarget.longitude, mapTarget.latitude],
+      zoom: 15,
+      duration: 1200,
+    });
+
+    clearMapTarget();
+  }, [mapTarget, flySequence, clearMapTarget]);
+
+  // ── No-token fallback ───────────────────────────────────────────────
   if (!token || !activeRestaurant) {
     return (
       <div className="glass-panel sticky top-24 flex min-h-[40rem] flex-col overflow-hidden rounded-4xl p-6">
         <div className="flex items-center justify-between gap-4">
           <div>
             <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">Map preview</p>
-            <h3 className="mt-1 font-display text-3xl text-slate-900">Connect Mapbox to go live</h3>
+            <h3 className="mt-1 font-display text-3xl text-slate-900">Connect TomTom to go live</h3>
           </div>
           <div className="rounded-full border border-orange-200 bg-orange-50 px-4 py-2 text-xs uppercase tracking-[0.2em] text-orange-500">
-            Add NEXT_PUBLIC_MAPBOX_TOKEN
+            Add NEXT_PUBLIC_TOMTOM_API_KEY
           </div>
         </div>
 
@@ -480,22 +574,22 @@ function MapPanel({
             const left = 18 + ((index * 13) % 60);
             const top  = 18 + ((index * 17) % 58);
             const Icon = iconMap[restaurant.icon];
-            const isActive = restaurant.id === activeRestaurant?.restaurant?.id;
+            const isAct = restaurant.id === activeRestaurant?.restaurant?.id;
 
             return (
               <motion.button
                 key={restaurant.id}
                 className={cn(
                   "absolute rounded-full border px-3 py-2 text-left backdrop-blur-md shadow-[0_4px_16px_rgb(0,0,0,0.06)]",
-                  isActive
+                  isAct
                     ? "border-[#FF6B35] bg-[#FF6B35] text-white"
                     : "border-gray-200 bg-white text-slate-900",
                 )}
                 style={{ left: `${left}%`, top: `${top}%` }}
                 onMouseEnter={() => setActiveRestaurantId(restaurant.id)}
                 whileHover={{ y: -4, scale: 1.04 }}
-                animate={isActive ? { y: [0, -8, 0], scale: [1, 1.08, 1] } : { y: 0, scale: 1 }}
-                transition={{ repeat: isActive ? Number.POSITIVE_INFINITY : 0, duration: 1.6 }}
+                animate={isAct ? { y: [0, -8, 0], scale: [1, 1.08, 1] } : { y: 0, scale: 1 }}
+                transition={{ repeat: isAct ? Number.POSITIVE_INFINITY : 0, duration: 1.6 }}
               >
                 <div className="flex items-center gap-2 text-xs font-semibold">
                   <Icon className="h-3.5 w-3.5" />
@@ -536,117 +630,14 @@ function MapPanel({
     );
   }
 
-  // ── Live Mapbox map ────────────────────────────────────────────────────
+  // ── Live TomTom map ─────────────────────────────────────────────────
   return (
     <div className="glass-panel sticky top-24 min-h-[40rem] overflow-hidden rounded-4xl p-2">
       <div className="relative h-[calc(100vh-8rem)] min-h-[38rem] overflow-hidden rounded-3xl border border-gray-200">
-        <Map
-          ref={mapRef}
-          reuseMaps
-          initialViewState={{
-            longitude: activeRestaurant.restaurant.coordinates[0],
-            latitude: activeRestaurant.restaurant.coordinates[1],
-            zoom: 12.8,
-          }}
-          mapboxAccessToken={token}
-          mapStyle="mapbox://styles/mapbox/light-v11"
-          attributionControl={false}
-        >
-          <NavigationControl position="top-right" showCompass={false} />
-          <FullscreenControl position="top-right" />
-
-          {userLocation && (
-            <Marker longitude={userLocation.longitude} latitude={userLocation.latitude} anchor="center">
-              <div className="relative flex h-5 w-5 items-center justify-center">
-                <span className="absolute h-5 w-5 rounded-full bg-orange-400/30 animate-[pulse-ring_1.8s_ease-out_infinite]" />
-                <span className="relative h-3.5 w-3.5 rounded-full border-2 border-white bg-[#FF6B35] shadow-md" />
-              </div>
-            </Marker>
-          )}
-
-          {restaurants.map(({ restaurant }) => {
-            const Icon = iconMap[restaurant.icon];
-            const isActive = restaurant.id === activeRestaurant.restaurant.id;
-
-            return (
-              <Marker
-                key={restaurant.id}
-                longitude={restaurant.coordinates[0]}
-                latitude={restaurant.coordinates[1]}
-                anchor="bottom"
-              >
-                <motion.button
-                  type="button"
-                  onMouseEnter={() => setActiveRestaurantId(restaurant.id)}
-                  onClick={() => setActiveRestaurantId(restaurant.id)}
-                  className="relative flex items-center justify-center"
-                  animate={isActive ? { scale: [1, 1.12, 1], y: [0, -7, 0] } : { scale: 1, y: 0 }}
-                  transition={{ duration: 1.5, repeat: isActive ? Number.POSITIVE_INFINITY : 0, ease: "easeInOut" }}
-                >
-                  {isActive && (
-                    <span className="absolute h-12 w-12 rounded-full border border-orange-300/50 bg-orange-100/50 animate-[pulse-ring_1.5s_ease-out_infinite]" />
-                  )}
-                  <span
-                    className={cn(
-                      "relative flex min-w-[58px] items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold shadow-[0_4px_16px_rgb(0,0,0,0.1)]",
-                      isActive
-                        ? "border-[#FF6B35] bg-[#FF6B35] text-white"
-                        : "border-gray-200 bg-white text-slate-800",
-                    )}
-                  >
-                    <Icon className="h-3 w-3" />
-                    {restaurant.rating.toFixed(1)}
-                  </span>
-                </motion.button>
-              </Marker>
-            );
-          })}
-
-          <Popup
-            longitude={activeRestaurant.restaurant.coordinates[0]}
-            latitude={activeRestaurant.restaurant.coordinates[1]}
-            anchor="top"
-            closeButton={false}
-            closeOnClick={false}
-            offset={24}
-          >
-            <div className="w-[260px] overflow-hidden rounded-[18px] bg-white shadow-[0_16px_40px_rgb(0,0,0,0.1)]">
-              <div className="relative h-32 w-full">
-                <Image
-                  src={activeRestaurant.restaurant.food_images?.[0] ?? activeRestaurant.restaurant.image}
-                  alt={activeRestaurant.restaurant.name}
-                  fill
-                  className="object-cover"
-                  sizes="260px"
-                />
-              </div>
-              <div className="space-y-1.5 p-3.5">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <h4 className="font-display text-lg text-slate-900">{activeRestaurant.restaurant.name}</h4>
-                    <p className="text-xs text-slate-500">{activeRestaurant.restaurant.neighborhood}</p>
-                  </div>
-                  <span className="shrink-0 rounded-full bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-600">
-                    {activeRestaurant.restaurant.rating.toFixed(1)}
-                  </span>
-                </div>
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  {activeRestaurant.restaurant.reservationSlots.map((slot) => (
-                    <span
-                      key={slot}
-                      className="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-0.5 text-[10px] text-slate-500"
-                    >
-                      {slot}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </Popup>
-        </Map>
+        <div ref={mapContainerRef} className="h-full w-full" />
 
         {/* Floating label */}
-          <div className="pointer-events-none absolute left-4 top-4 rounded-full border border-gray-200 bg-white/90 px-4 py-2 text-xs text-slate-500 shadow-sm backdrop-blur-md">
+        <div className="pointer-events-none absolute left-4 top-4 rounded-full border border-gray-200 bg-white/90 px-4 py-2 text-xs text-slate-500 shadow-sm backdrop-blur-md">
           {locationStatus === "ready"
             ? "Live map · Synced to your location"
             : "Live map · Hover cards to move pins"}
@@ -673,7 +664,7 @@ function MapPanel({
                 {activeRestaurant.restaurant.reservationSlots.map((slot) => (
                   <span
                     key={slot}
-                      className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-[10px] text-slate-500"
+                    className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-[10px] text-slate-500"
                   >
                     {slot}
                   </span>
@@ -685,4 +676,49 @@ function MapPanel({
       </div>
     </div>
   );
+}
+
+// ─── Marker DOM helpers ───────────────────────────────────────────────────────
+
+function buildMarkerDom(restaurant: Restaurant, distanceLabel: string, isActive: boolean): HTMLDivElement {
+  const wrapper = document.createElement("div");
+  wrapper.className = "tomtom-custom-marker";
+  wrapper.dataset.restaurantId = restaurant.id;
+
+  const pill = document.createElement("div");
+  pill.className = `tomtom-marker-pill${isActive ? " tomtom-marker-active" : ""}`;
+
+  const nameSpan = document.createElement("span");
+  nameSpan.className = "tomtom-marker-name";
+  nameSpan.textContent = restaurant.name;
+
+  const distSpan = document.createElement("span");
+  distSpan.className = "tomtom-marker-distance";
+  distSpan.textContent = distanceLabel;
+
+  pill.appendChild(nameSpan);
+  pill.appendChild(distSpan);
+
+  const tail = document.createElement("div");
+  tail.className = "tomtom-marker-tail";
+
+  wrapper.appendChild(pill);
+  wrapper.appendChild(tail);
+
+  return wrapper;
+}
+
+function applyMarkerHighlight(element: HTMLDivElement, isActive: boolean): void {
+  const pill = element.querySelector(".tomtom-marker-pill");
+  if (!pill) return;
+
+  if (isActive) {
+    pill.classList.add("tomtom-marker-active");
+    element.style.transition = "transform 0.3s cubic-bezier(.34,1.56,.64,1)";
+    element.style.transform = "translateY(-8px)";
+    setTimeout(() => { element.style.transform = "translateY(0)"; }, 350);
+  } else {
+    pill.classList.remove("tomtom-marker-active");
+    element.style.transform = "translateY(0)";
+  }
 }

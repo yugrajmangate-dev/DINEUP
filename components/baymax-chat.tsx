@@ -23,6 +23,7 @@ import type { UserLocation } from "@/lib/geo";
 import { restaurants } from "@/lib/restaurants";
 import { BookingModal } from "@/components/booking-modal";
 import { cn } from "@/lib/utils";
+import { useMapStore } from "@/store/map-store";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -108,6 +109,10 @@ function BookingCard({ result, onBook }: { result: Record<string, unknown>; onBo
   const bookingMessage = result.bookingMessage as string | undefined;
   const requestedSlot = result.requestedSlot as string | undefined;
 
+  // Look up coordinates for the "View on Map" button
+  const setMapTarget = useMapStore((s) => s.setMapTarget);
+  const restaurant = restaurants.find((r) => r.id === restaurantId);
+
   return (
     <div className="flex justify-start">
       <motion.div
@@ -157,23 +162,32 @@ function BookingCard({ result, onBook }: { result: Record<string, unknown>; onBo
           </div>
         )}
 
-        {/* CTA */}
-        {!booked && (
-          <div className="px-4 pb-4">
+        {/* CTA row */}
+        <div className="px-4 pb-4 flex gap-2">
+          {!booked && (
             <button
               type="button"
               onClick={() => onBook(restaurantId)}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#FF6B35] py-2.5 text-sm font-bold text-white shadow-[0_4px_16px_rgba(255,107,53,0.3)] hover:shadow-[0_8px_24px_rgba(255,107,53,0.4)] active:scale-[0.98] transition-all"
+              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#FF6B35] py-2.5 text-sm font-bold text-white shadow-[0_4px_16px_rgba(255,107,53,0.3)] hover:shadow-[0_8px_24px_rgba(255,107,53,0.4)] active:scale-[0.98] transition-all"
             >
               <CalendarCheck className="h-4 w-4" />Reserve table
             </button>
-          </div>
-        )}
-        {booked && requestedSlot && (
-          <div className="px-4 pb-4 text-xs font-medium text-emerald-700">
-            Confirmed at {requestedSlot}.
-          </div>
-        )}
+          )}
+          {booked && requestedSlot && (
+            <span className="flex-1 flex items-center text-xs font-medium text-emerald-700">
+              Confirmed at {requestedSlot}.
+            </span>
+          )}
+          {restaurant && (
+            <button
+              type="button"
+              onClick={() => setMapTarget({ longitude: restaurant.coordinates[0], latitude: restaurant.coordinates[1] })}
+              className="flex items-center gap-1.5 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-xs font-semibold text-slate-600 hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600 active:scale-95 transition-all"
+            >
+              <MapPin className="h-3.5 w-3.5" />View on Map
+            </button>
+          )}
+        </div>
       </motion.div>
     </div>
   );

@@ -1,4 +1,4 @@
-﻿@import "mapbox-gl/dist/mapbox-gl.css";
+﻿@import "@tomtom-international/web-sdk-maps/dist/maps.css";
 @import "tailwindcss";
 
 /* ─── Vibrant Modern palette ───────────────────────────────────────────────── */
@@ -80,30 +80,103 @@ button {
   animation: shimmer 1.8s linear infinite;
 }
 
-/* Mapbox controls */
-.mapboxgl-ctrl-group,
-.mapboxgl-ctrl.mapboxgl-ctrl-attrib {
+/* ─── TomTom custom markers ────────────────────────────────────────────────── */
+
+.tomtom-custom-marker {
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.tomtom-marker-pill {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  min-width: 72px;
+  padding: 6px 12px;
+  border-radius: 9999px;
+  border: 2px solid #FF6B35;
+  background: #FFFFFF;
+  color: #0F172A;
+  font-family: var(--font-inter), Arial, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.3;
+  text-align: center;
+  box-shadow: 0 4px 16px rgb(0 0 0 / 0.10);
+  transition: background 0.25s ease, color 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.tomtom-marker-pill.tomtom-marker-active {
+  background: #FF6B35;
+  color: #FFFFFF;
+  box-shadow: 0 8px 24px rgba(255, 107, 53, 0.35);
+}
+
+.tomtom-marker-name {
+  white-space: nowrap;
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tomtom-marker-distance {
+  font-weight: 500;
+  font-size: 9px;
+  opacity: 0.7;
+}
+
+.tomtom-marker-tail {
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 6px solid #FF6B35;
+  margin-top: -1px;
+}
+
+/* User location dot */
+.tomtom-user-marker {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+}
+
+.tomtom-user-pulse {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(255, 107, 53, 0.3);
+  animation: pulse-ring 1.8s ease-out infinite;
+}
+
+.tomtom-user-dot {
+  position: relative;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid #FFFFFF;
+  background: #FF6B35;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.2);
+}
+
+/* TomTom built-in controls */
+.tt-control-group,
+.tt-attribution {
   border: 1px solid #E2E8F0 !important;
   background: rgba(255, 255, 255, 0.96) !important;
   backdrop-filter: blur(14px);
   box-shadow: 0 4px 16px rgb(0 0 0 / 0.08) !important;
 }
 
-.mapboxgl-ctrl-group button {
+.tt-control-group button {
   color: #0F172A !important;
-}
-
-.mapboxgl-popup-content {
-  padding: 0 !important;
-  border-radius: 20px !important;
-  overflow: hidden;
-  background: #FFFFFF !important;
-  border: 1px solid #E2E8F0;
-  box-shadow: 0 16px 48px rgb(0 0 0 / 0.1) !important;
-}
-
-.mapboxgl-popup-tip {
-  border-top-color: #FFFFFF !important;
 }
 
 @keyframes shimmer {

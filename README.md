@@ -1,6 +1,6 @@
 # DineUp
 
-DineUp is a premium, hyper-local restaurant discovery and reservation concept built with Next.js App Router, TypeScript, Tailwind CSS, Framer Motion, Mapbox GL, and Lucide React.
+DineUp is a premium, hyper-local restaurant discovery and reservation concept built with Next.js App Router, TypeScript, Tailwind CSS, Framer Motion, TomTom Maps SDK, and Lucide React.
 
 ## Included UI Deliverables
 
@@ -22,7 +22,7 @@ DineUp is a premium, hyper-local restaurant discovery and reservation concept bu
 - React 19 + TypeScript
 - Tailwind CSS 4
 - Framer Motion
-- react-map-gl + Mapbox GL JS
+- TomTom Maps SDK (@tomtom-international/web-sdk-maps)
 - AI SDK (`ai`, `@ai-sdk/react`, `@ai-sdk/openai`) v5 with tool calling
 - Firebase (Auth + Cloud Firestore)
 - Zustand (lightweight global state)
@@ -45,7 +45,7 @@ DineUp is a premium, hyper-local restaurant discovery and reservation concept bu
 	```
 
 	Set the following in `.env.local`:
-	- `NEXT_PUBLIC_MAPBOX_TOKEN` — Mapbox public token (optional; without it the map renders a fallback)
+	- `NEXT_PUBLIC_TOMTOM_API_KEY` — TomTom API key (optional; without it the map renders a fallback)
 	- `GROQ_API_KEY` — Groq API key for Baymax streaming + tool calling
 	- `GROQ_MODEL` — model name (defaults to `openai/gpt-oss-20b`)
 	- `NEXT_PUBLIC_FIREBASE_*` — Your Firebase configuration keys
@@ -61,7 +61,7 @@ DineUp is a premium, hyper-local restaurant discovery and reservation concept bu
 
 ## Notes
 
-- Without `NEXT_PUBLIC_MAPBOX_TOKEN`, the map panel renders a designed fallback preview instead of the live Mapbox canvas.
+- Without `NEXT_PUBLIC_TOMTOM_API_KEY`, the map panel renders a designed fallback preview instead of the live TomTom canvas.
 - Without `OPENAI_API_KEY`, the Baymax route returns a clear setup error in the chat window.
 - Remote restaurant photography is loaded from Unsplash via the image allowlist in [next.config.ts](next.config.ts).
 
