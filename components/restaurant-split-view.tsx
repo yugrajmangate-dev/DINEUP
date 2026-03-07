@@ -75,11 +75,11 @@ function matchesFilter(restaurant: Restaurant, filter: FilterId): boolean {
   const t = [...restaurant.tags, ...restaurant.dietary_tags].map((s) => s.toLowerCase());
   const id = restaurant.id;
   switch (filter) {
-    case "fine-dining": return id === "atlas-room" || id === "cinder-house" || t.includes("tasting menu");
-    case "pure-veg":    return t.includes("pure veg") || t.includes("vegetarian-friendly");
-    case "cafe":        return id === "moss-cafe" || t.includes("cafe");
-    case "nightlife":   return t.includes("late seating") || t.includes("late night") || id === "sora-izakaya";
-    case "outdoor":     return t.includes("outdoor seating") || id === "olive-court";
+    case "fine-dining": return id === "mainland-china" || id === "toit-brewery" || t.includes("chef-led") || t.includes("date night");
+    case "pure-veg":    return t.includes("pure veg") || t.includes("vegan-friendly");
+    case "cafe":        return id === "cafe-good-luck" || id === "11-east-street" || id === "barometer" || t.includes("brunch") || t.includes("breakfast");
+    case "nightlife":   return t.includes("late seating") || t.includes("late night") || id === "toit-brewery";
+    case "outdoor":     return t.includes("outdoor seating") || id === "11-east-street" || id === "toit-brewery";
     default:            return true;
   }
 }
