@@ -25,6 +25,11 @@ function getFirebaseApp(): FirebaseApp | null {
     return null;
   }
 
+  if (process.env.NODE_ENV === "development" && typeof window !== "undefined") {
+    const suffix = firebaseConfig.apiKey.slice(-6);
+    console.info(`Firebase init using API key ending with: ${suffix}`);
+  }
+
   return initializeApp(firebaseConfig);
 }
 

@@ -115,7 +115,7 @@ export default function CareersPage() {
                   <p className="mt-3 text-sm leading-relaxed text-slate-500">{role.description}</p>
                 </div>
                 <a
-                  href={`mailto:careers@dineup.in?subject=Application: ${encodeURIComponent(role.title)}`}
+                  href={`mailto:dineupservices@gmail.com?subject=Application: ${encodeURIComponent(role.title)}`}
                   className="shrink-0 rounded-xl border border-gray-200 px-4 py-2 text-sm font-medium text-slate-700 transition-all hover:border-[#FF6B35] hover:bg-orange-50 hover:text-[#FF6B35]"
                 >
                   Apply →
@@ -131,7 +131,7 @@ export default function CareersPage() {
             Send us a note anyway — we&apos;re always interested in exceptional people.
           </p>
           <a
-            href="mailto:careers@dineup.in"
+            href="mailto:dineupservices@gmail.com"
             className="mt-5 inline-flex items-center gap-2 rounded-xl bg-[#FF6B35] px-6 py-3 text-sm font-medium text-white shadow-[0_4px_16px_rgba(255,107,53,0.3)] transition-all hover:shadow-[0_8px_24px_rgba(255,107,53,0.4)] active:scale-95"
           >
             Say hello

@@ -214,6 +214,7 @@ function friendlyError(raw: string): string {
     "email-already-in-use": "That email is already registered. Sign in instead.",
     "weak-password": "Password must be at least 6 characters.",
     "invalid-email": "Please enter a valid email address.",
+    "invalid-api-key": "Firebase API key is invalid. Verify NEXT_PUBLIC_FIREBASE_API_KEY in .env.local and restart the dev server.",
     "too-many-requests": "Too many attempts. Please try again later.",
     "popup-closed-by-user": "Sign-in popup was closed before completing.",
   };

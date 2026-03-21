@@ -6,9 +6,9 @@ export const metadata: Metadata = {
 };
 
 const contactItems = [
-  ["Support", "support@dineup.in"],
-  ["Partnerships", "partners@dineup.in"],
-  ["Press", "press@dineup.in"],
+  ["Support", "dineupservices@gmail.com"],
+  ["Partnerships", "dineupservices@gmail.com"],
+  ["Press", "dineupservices@gmail.com"],
 ];
 
 export default function ContactPage() {

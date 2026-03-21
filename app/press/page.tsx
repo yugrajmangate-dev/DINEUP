@@ -59,8 +59,8 @@ export default function PressPage() {
           <p className="mt-6 text-lg leading-relaxed text-slate-500">
             Everything you need to write about DineUp accurately and beautifully.
             For interviews and custom requests, reach us at{" "}
-            <a href="mailto:press@dineup.in" className="text-[#FF6B35] underline underline-offset-2">
-              press@dineup.in
+            <a href="mailto:dineupservices@gmail.com" className="text-[#FF6B35] underline underline-offset-2">
+              dineupservices@gmail.com
             </a>
           </p>
         </div>

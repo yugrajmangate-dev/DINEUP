@@ -37,7 +37,7 @@ const socialLinks = [
   { icon: Twitter, href: "#", label: "Twitter" },
   { icon: Instagram, href: "#", label: "Instagram" },
   { icon: Github, href: "https://github.com/yugrajmangate-dev/DINEUP", label: "GitHub" },
-  { icon: Mail, href: "#", label: "Email" },
+  { icon: Mail, href: "mailto:dineupservices@gmail.com", label: "Email" },
 ];
 
 export function SiteFooter() {
