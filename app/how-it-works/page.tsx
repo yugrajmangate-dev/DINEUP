@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Bot, CalendarCheck, MapPin, Search } from "lucide-react";
 
 export const metadata: Metadata = {
@@ -57,7 +58,7 @@ export default function HowItWorksPage() {
   return (
     <main className="min-h-screen bg-white">
       {/* ── Hero ─────────────────────────────────────────────────────────── */}
-      <section className="border-b border-gray-100 bg-gradient-to-b from-orange-50 to-white px-6 pt-24 pb-20 text-center sm:px-8 lg:px-12">
+      <section className="border-b border-gray-100 bg-linear-to-b from-orange-50 to-white px-6 pt-24 pb-20 text-center sm:px-8 lg:px-12">
         <div className="mx-auto max-w-2xl">
           <span className="inline-block rounded-full border border-orange-200 bg-orange-50 px-4 py-1.5 text-xs font-medium uppercase tracking-[0.2em] text-[#FF6B35]">
             How it works
@@ -124,14 +125,15 @@ export default function HowItWorksPage() {
           <p className="mt-4 text-slate-500">
             Ask Baymax to find you a table right now — he&apos;s live on the home page.
           </p>
-          <a
+          <Link
             href="/"
             className="mt-8 inline-flex items-center gap-2 rounded-2xl bg-[#FF6B35] px-7 py-3.5 text-sm font-medium text-white shadow-[0_4px_20px_rgba(255,107,53,0.3)] transition-all hover:shadow-[0_8px_32px_rgba(255,107,53,0.45)] active:scale-95"
           >
             Try it free
-          </a>
+          </Link>
         </div>
       </section>
     </main>
   );
 }
+

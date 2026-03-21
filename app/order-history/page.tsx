@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { collection, getDocs, orderBy, query, where } from "firebase/firestore";
-import { CalendarDays, History, MapPin, Users } from "lucide-react";
+import { CalendarDays, MapPin, Users } from "lucide-react";
 
 import { AccountAuthGate } from "@/components/account-auth-gate";
 import { db } from "@/lib/firebase";
@@ -63,7 +63,7 @@ export default function OrderHistoryPage() {
   }, [user]);
 
   if (!mounted || status === "loading" || (status === "authenticated" && isLoading)) {
-    return <main className="min-h-screen bg-gray-50 px-4 pb-16 pt-8 sm:px-6 lg:px-8"><div className="mx-auto max-w-6xl"><div className="h-52 animate-pulse rounded-[2rem] bg-white" /></div></main>;
+    return <main className="min-h-screen bg-gray-50 px-4 pb-16 pt-8 sm:px-6 lg:px-8"><div className="mx-auto max-w-6xl"><div className="h-52 animate-pulse rounded-4xl bg-white" /></div></main>;
   }
 
   if (!user) {
@@ -90,7 +90,7 @@ export default function OrderHistoryPage() {
         </header>
 
         {bookings.length === 0 ? (
-          <section className="glass-panel rounded-[2rem] border border-gray-200 bg-white p-10 text-center text-slate-500">
+          <section className="glass-panel rounded-4xl border border-gray-200 bg-white p-10 text-center text-slate-500">
             No reservations yet. Once you book a table, it will appear here.
           </section>
         ) : (

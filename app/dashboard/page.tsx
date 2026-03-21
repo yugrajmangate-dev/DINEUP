@@ -7,7 +7,6 @@ import {
   CalendarDays,
   Clock,
   Compass,
-  LogIn,
   LayoutDashboard,
   Loader2,
   MapPin,
@@ -240,7 +239,7 @@ function BookingCard({
         <div className="absolute inset-x-0 top-0 h-1 bg-gray-200" />
       )}
       {!isCancelled && (
-        <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-[#FF6B35]/60 to-[#FF6B35]" />
+        <div className="absolute inset-x-0 top-0 h-1 bg-linear-to-r from-[#FF6B35]/60 to-[#FF6B35]" />
       )}
 
       <div className="p-5">
@@ -369,3 +368,4 @@ function DashboardSkeleton() {
     </main>
   );
 }
+

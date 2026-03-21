@@ -97,6 +97,8 @@ function AuthModalPanel({ onClose }: { onClose: () => void }) {
         {/* Close ────────────────────────────────────────────────────────────── */}
         <button
           type="button"
+          title="Close authentication dialog"
+          aria-label="Close authentication dialog"
           onClick={onClose}
           className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full border border-orange-100 bg-white/90 text-slate-500 shadow-sm hover:bg-orange-50 active:scale-95"
         >

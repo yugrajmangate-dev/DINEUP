@@ -14,7 +14,7 @@ const contactItems = [
 export default function ContactPage() {
   return (
     <main className="min-h-screen px-4 pb-16 pt-10 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-4xl rounded-[2rem] border border-gray-200 bg-white p-8 shadow-sm sm:p-10">
+      <div className="mx-auto max-w-4xl rounded-4xl border border-gray-200 bg-white p-8 shadow-sm sm:p-10">
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-orange-600">Support</p>
         <h1 className="mt-3 font-display text-5xl text-slate-900">Contact Us</h1>
         <div className="mt-8 grid gap-4 sm:grid-cols-3">

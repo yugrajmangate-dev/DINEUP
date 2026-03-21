@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
@@ -28,7 +28,7 @@ import { useMapStore } from "@/store/map-store";
 
 const BookingModal = dynamic(() => import("@/components/booking-modal").then(mod => mod.BookingModal), { ssr: false });
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// --- Types --------------------------------------------------------------------
 
 interface ToolCallPart {
   type: "tool-call";
@@ -112,23 +112,23 @@ function getStaticToolName(part: StaticToolUIPart) {
   return part.type.slice("tool-".length);
 }
 
-// ─── Starter message ──────────────────────────────────────────────────────────
+// --- Starter message ----------------------------------------------------------
 
 const STARTER_ID = "baymax-intro";
 
 const starterBubble: UIMessage = {
   id: STARTER_ID,
   role: "assistant",
-  parts: [{ type: "text", text: "Hello! I am Baymax — your personal dining concierge. Tell me what you are craving tonight and I will find the perfect table." }],
+  parts: [{ type: "text", text: "Hello! I am Baymax � your personal dining concierge. Tell me what you are craving tonight and I will find the perfect table." }],
 };
 
-// ─── Tool badge ───────────────────────────────────────────────────────────────
+// --- Tool badge ---------------------------------------------------------------
 
 function ToolCallingBadge({ toolName }: { toolName: string }) {
   const label =
-    toolName === "checkAvailability" ? "Checking availability…"
-    : toolName === "initiateBooking" ? "Loading booking card…"
-    : `Running ${toolName}…`;
+    toolName === "checkAvailability" ? "Checking availability�"
+    : toolName === "initiateBooking" ? "Loading booking card�"
+    : `Running ${toolName}�`;
 
   return (
     <div className="flex justify-start">
@@ -144,7 +144,7 @@ function ToolCallingBadge({ toolName }: { toolName: string }) {
   );
 }
 
-// ─── Availability card ────────────────────────────────────────────────────────
+// --- Availability card --------------------------------------------------------
 
 function AvailabilityResultCard({ result }: { result: Record<string, unknown> }) {
   const available = result.available as boolean;
@@ -181,7 +181,7 @@ function ToolErrorCard({
   );
 }
 
-// ─── Booking card ─────────────────────────────────────────────────────────────
+// --- Booking card -------------------------------------------------------------
 
 function BookingCard({ result, onBook }: { result: Record<string, unknown>; onBook: (draft: BookingDraft) => void }) {
   const restaurantId = result.restaurantId as string;
@@ -216,7 +216,7 @@ function BookingCard({ result, onBook }: { result: Record<string, unknown>; onBo
         className="w-full max-w-[92%] overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-[0_8px_32px_rgba(0,0,0,0.08)]"
       >
         {/* Card header */}
-        <div className="bg-gradient-to-r from-[#FF6B35] to-[#FF4F5A] px-4 py-3">
+        <div className="bg-linear-to-r from-[#FF6B35] to-[#FF4F5A] px-4 py-3">
           <div className="flex items-start justify-between gap-2">
             <div>
               <p className="text-[10px] uppercase tracking-[0.2em] text-white/70">{cuisine}</p>
@@ -271,8 +271,8 @@ function BookingCard({ result, onBook }: { result: Record<string, unknown>; onBo
           <div className="px-4 pb-2">
             <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
               <p className="font-semibold text-slate-900">Pre-booking payment options</p>
-              <p className="mt-1">Estimated bill: ₹{estimatedSubtotal.toLocaleString("en-IN")}</p>
-              <p>Pay-now amount (20%): ₹{prebookingAmount.toLocaleString("en-IN")}</p>
+              <p className="mt-1">Estimated bill: ?{estimatedSubtotal.toLocaleString("en-IN")}</p>
+              <p>Pay-now amount (20%): ?{prebookingAmount.toLocaleString("en-IN")}</p>
             </div>
           </div>
         )}
@@ -371,14 +371,14 @@ function renderToolResult(
   return null;
 }
 
-// ─── Props ────────────────────────────────────────────────────────────────────
+// --- Props --------------------------------------------------------------------
 
 type BaymaxChatProps = {
   userLocation: UserLocation | null;
   locationStatus: GeolocationStatus;
 };
 
-// ─── Main component ───────────────────────────────────────────────────────────
+// --- Main component -----------------------------------------------------------
 
 export function BaymaxChat({ userLocation, locationStatus }: BaymaxChatProps) {
   // Open automatically on every fresh page visit / reload.
@@ -431,7 +431,7 @@ export function BaymaxChat({ userLocation, locationStatus }: BaymaxChatProps) {
   return (
     <>
       <div id="baymax-concierge" className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3 pointer-events-none">
-        {/* ── Chat window ─────────────────────────────────────────────────── */}
+        {/* -- Chat window --------------------------------------------------- */}
         <AnimatePresence>
           {isOpen && (
             <motion.div
@@ -439,11 +439,10 @@ export function BaymaxChat({ userLocation, locationStatus }: BaymaxChatProps) {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 16, scale: 0.94 }}
               transition={{ type: "spring", stiffness: 300, damping: 28 }}
-              className="pointer-events-auto flex w-[350px] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-[28px] border border-gray-200/80 bg-white shadow-[0_20px_60px_rgba(0,0,0,0.15),0_4px_16px_rgba(0,0,0,0.08)]"
-              style={{ maxHeight: "min(600px, calc(100vh - 6rem))" }}
+              className="pointer-events-auto flex w-87.5 max-h-[min(600px,calc(100vh-6rem))] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-[28px] border border-gray-200/80 bg-white shadow-[0_20px_60px_rgba(0,0,0,0.15),0_4px_16px_rgba(0,0,0,0.08)]"
             >
               {/* Header */}
-              <div className="flex items-center justify-between bg-gradient-to-br from-[#FF6B35] to-[#FF4F5A] px-5 py-4">
+              <div className="flex items-center justify-between bg-linear-to-br from-[#FF6B35] to-[#FF4F5A] px-5 py-4">
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/20 backdrop-blur-sm">
                     <ChefHat className="h-5 w-5 text-white" />
@@ -451,12 +450,14 @@ export function BaymaxChat({ userLocation, locationStatus }: BaymaxChatProps) {
                   <div>
                     <p className="font-bold text-white">Baymax</p>
                     <p className="text-xs text-white/70">
-                      {locationStatus === "ready" ? "📍 Location-aware concierge" : "AI Dining Concierge"}
+                      {locationStatus === "ready" ? "Location-aware concierge" : "AI Dining Concierge"}
                     </p>
                   </div>
                 </div>
                 <button
                   type="button"
+                  title="Close chat"
+                  aria-label="Close chat"
                   onClick={() => setIsOpen(false)}
                   className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/15 text-white hover:bg-white/25 active:scale-95 transition-all"
                 >
@@ -467,8 +468,7 @@ export function BaymaxChat({ userLocation, locationStatus }: BaymaxChatProps) {
               {/* Messages */}
               <div
                 ref={scrollRef}
-                className="flex-1 space-y-3 overflow-y-auto px-4 py-4"
-                style={{ maxHeight: "340px" }}
+                className="flex-1 max-h-85 space-y-3 overflow-y-auto px-4 py-4"
               >
                 {allMessages.map((message) => (
                   <div key={message.id} className="space-y-3">
@@ -479,7 +479,7 @@ export function BaymaxChat({ userLocation, locationStatus }: BaymaxChatProps) {
                             <div className={cn(
                               "max-w-[84%] rounded-2xl px-4 py-3 text-sm leading-relaxed",
                               message.role === "user"
-                                ? "bg-gradient-to-br from-[#FF6B35] to-[#FF4F5A] text-white shadow-[0_4px_12px_rgba(255,107,53,0.25)]"
+                                ? "bg-linear-to-br from-[#FF6B35] to-[#FF4F5A] text-white shadow-[0_4px_12px_rgba(255,107,53,0.25)]"
                                 : "bg-gray-100 text-slate-800",
                             )}>
                               {part.text}
@@ -488,7 +488,7 @@ export function BaymaxChat({ userLocation, locationStatus }: BaymaxChatProps) {
                         );
                       }
 
-                      // ── AI SDK v6 older format: tool-invocation with state ─
+                      // -- AI SDK v6 older format: tool-invocation with state -
                       if (part.type === "tool-invocation") {
                         const inv = part as ToolInvocationPart;
                         if (inv.state === "call" || inv.state === "partial-call") {
@@ -500,7 +500,7 @@ export function BaymaxChat({ userLocation, locationStatus }: BaymaxChatProps) {
                         return null;
                       }
 
-                      // ── AI SDK v6 current format: tool-<name> / dynamic-tool ─
+                      // -- AI SDK v6 current format: tool-<name> / dynamic-tool -
                       if (isStaticToolUIPart(part)) {
                         const toolName = getStaticToolName(part);
 
@@ -543,7 +543,7 @@ export function BaymaxChat({ userLocation, locationStatus }: BaymaxChatProps) {
                         return null;
                       }
 
-                      // ── AI SDK v4 legacy format (kept for compatibility) ──
+                      // -- AI SDK v4 legacy format (kept for compatibility) --
                       if (part.type === "tool-call") {
                         const hasResult = (message.parts as MessagePart[]).some(
                           (p) => p.type === "tool-result" && (p as ToolResultPart).toolCallId === (part as ToolCallPart).toolCallId,
@@ -611,12 +611,14 @@ export function BaymaxChat({ userLocation, locationStatus }: BaymaxChatProps) {
                     <input
                       value={input}
                       onChange={(e) => setInput(e.target.value)}
-                      placeholder="Ask for a perfect table…"
+                      placeholder="Ask for a perfect table..."
                       className="w-full bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
                     />
                   </div>
                   <button
                     type="submit"
+                    title="Send message"
+                    aria-label="Send message"
                     disabled={!input.trim() || isThinking}
                     className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#FF6B35] text-white shadow-[0_4px_16px_rgba(255,107,53,0.35)] hover:shadow-[0_8px_24px_rgba(255,107,53,0.45)] active:scale-95 disabled:opacity-50 transition-all"
                   >
@@ -628,13 +630,13 @@ export function BaymaxChat({ userLocation, locationStatus }: BaymaxChatProps) {
           )}
         </AnimatePresence>
 
-        {/* ── FAB ─────────────────────────────────────────────────────────── */}
+        {/* -- FAB ----------------------------------------------------------- */}
         <motion.button
           type="button"
           onClick={() => setIsOpen((v) => !v)}
           whileTap={{ scale: 0.94 }}
           whileHover={{ scale: 1.06 }}
-          className="pointer-events-auto relative flex h-16 w-16 items-center justify-center rounded-[22px] bg-gradient-to-br from-[#FF6B35] to-[#FF4F5A] text-white shadow-[0_8px_32px_rgba(255,107,53,0.45)] transition-shadow hover:shadow-[0_12px_40px_rgba(255,107,53,0.55)]"
+          className="pointer-events-auto relative flex h-16 w-16 items-center justify-center rounded-[22px] bg-linear-to-br from-[#FF6B35] to-[#FF4F5A] text-white shadow-[0_8px_32px_rgba(255,107,53,0.45)] transition-shadow hover:shadow-[0_12px_40px_rgba(255,107,53,0.55)]"
         >
           {/* Pulse ring */}
           <motion.span
@@ -667,3 +669,5 @@ export function BaymaxChat({ userLocation, locationStatus }: BaymaxChatProps) {
     </>
   );
 }
+
+

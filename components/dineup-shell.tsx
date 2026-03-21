@@ -42,7 +42,7 @@ export function DineUpShell({
 }: DineUpShellProps) {
   return (
     <main className="min-h-screen px-4 pb-10 pt-6 sm:px-6 lg:px-8">
-      <div className="mx-auto flex w-full max-w-[1800px] flex-col gap-8">
+      <div className="mx-auto flex w-full max-w-450 flex-col gap-8">
         {/* ── Hero ───────────────────────────────────────────────── */}
         <section className="relative overflow-hidden px-2 py-16 sm:py-20 lg:py-24">
           <div className="absolute -right-40 -top-40 h-96 w-96 rounded-full bg-orange-400/10 blur-[120px]" />
@@ -99,3 +99,4 @@ export function DineUpShell({
     </main>
   );
 }
+

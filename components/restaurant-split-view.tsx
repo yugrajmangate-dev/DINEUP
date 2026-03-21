@@ -6,7 +6,6 @@ import { AnimatePresence, motion, type Variants } from "framer-motion";
 import dynamic from "next/dynamic";
 import {
   ArrowUpRight,
-  CalendarDays,
   ChevronLeft,
   ChevronRight,
   Compass,
@@ -345,6 +344,8 @@ function RestaurantCard({ restaurant, distanceLabel, isActive, onSelect, onBookN
           <>
             <button
               type="button"
+              title="Previous image"
+              aria-label="Previous image"
               onClick={(e) => { e.stopPropagation(); prev(); }}
               className="absolute left-2 top-1/2 z-10 -translate-y-1/2 flex h-7 w-7 items-center justify-center rounded-full bg-white/80 text-slate-900 shadow-sm backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity"
             >
@@ -352,6 +353,8 @@ function RestaurantCard({ restaurant, distanceLabel, isActive, onSelect, onBookN
             </button>
             <button
               type="button"
+              title="Next image"
+              aria-label="Next image"
               onClick={(e) => { e.stopPropagation(); next(); }}
               className="absolute right-2 top-1/2 z-10 -translate-y-1/2 flex h-7 w-7 items-center justify-center rounded-full bg-white/80 text-slate-900 shadow-sm backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity"
             >
@@ -362,6 +365,8 @@ function RestaurantCard({ restaurant, distanceLabel, isActive, onSelect, onBookN
                 <button
                   key={i}
                   type="button"
+                  title={`Show image ${i + 1}`}
+                  aria-label={`Show image ${i + 1}`}
                   onClick={(e) => { e.stopPropagation(); setCurrentImg(i); }}
                   className={cn(
                     "h-1.5 rounded-full transition-all",
@@ -453,6 +458,11 @@ type MarkerEntry = {
   element: HTMLDivElement;
 };
 
+type UserMarkerLike = {
+  remove: () => void;
+  setLngLat: (coords: [number, number]) => UserMarkerLike;
+};
+
 function MapPanel({
   activeRestaurant,
   locationStatus,
@@ -471,8 +481,7 @@ function MapPanel({
   const ttRef = useRef<any>(null);
   const markersRef = useRef<Map<string, MarkerEntry>>(new Map());
   const mapLoadedRef = useRef(false);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const userMarkerRef = useRef<any>(null);
+  const userMarkerRef = useRef<UserMarkerLike | null>(null);
 
   const token = process.env.NEXT_PUBLIC_TOMTOM_API_KEY ?? "XrGZxbn0mSMFA47GFG6KuiD8bV7VtbMi";
 
@@ -824,7 +833,7 @@ function syncUserMarker({
   map: any;
   hasLiveLocation: boolean;
   userLocation: UserLocation | null;
-  userMarkerRef: React.MutableRefObject<any>;
+  userMarkerRef: React.MutableRefObject<UserMarkerLike | null>;
 }) {
   if (!hasLiveLocation || !userLocation) {
     userMarkerRef.current?.remove?.();

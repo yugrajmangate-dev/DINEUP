@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Compass, Heart, MapPin, Sparkles, Users, Zap } from "lucide-react";
 
 export const metadata: Metadata = {
@@ -43,7 +44,7 @@ export default function AboutPage() {
   return (
     <main className="min-h-screen bg-white">
       {/* ── Hero ─────────────────────────────────────────────────────────── */}
-      <section className="border-b border-gray-100 bg-gradient-to-b from-orange-50 to-white px-6 pt-24 pb-20 text-center sm:px-8 lg:px-12">
+      <section className="border-b border-gray-100 bg-linear-to-b from-orange-50 to-white px-6 pt-24 pb-20 text-center sm:px-8 lg:px-12">
         <div className="mx-auto max-w-3xl">
           <span className="inline-block rounded-full border border-orange-200 bg-orange-50 px-4 py-1.5 text-xs font-medium uppercase tracking-[0.2em] text-[#FF6B35]">
             About DineUp
@@ -121,14 +122,15 @@ export default function AboutPage() {
         <div className="mx-auto max-w-xl">
           <h2 className="font-display text-4xl text-slate-900">Ready to dine well?</h2>
           <p className="mt-4 text-slate-500">Let Baymax find your next favourite table.</p>
-          <a
+          <Link
             href="/"
             className="mt-8 inline-flex items-center gap-2 rounded-2xl bg-[#FF6B35] px-7 py-3.5 text-sm font-medium text-white shadow-[0_4px_20px_rgba(255,107,53,0.3)] transition-all hover:shadow-[0_8px_32px_rgba(255,107,53,0.45)] active:scale-95"
           >
             Explore restaurants
-          </a>
+          </Link>
         </div>
       </section>
     </main>
   );
 }
+

@@ -55,7 +55,7 @@ export default function CareersPage() {
   return (
     <main className="min-h-screen bg-white">
       {/* ── Hero ─────────────────────────────────────────────────────────── */}
-      <section className="border-b border-gray-100 bg-gradient-to-b from-orange-50 to-white px-6 pt-24 pb-20 sm:px-8 lg:px-12">
+      <section className="border-b border-gray-100 bg-linear-to-b from-orange-50 to-white px-6 pt-24 pb-20 sm:px-8 lg:px-12">
         <div className="mx-auto max-w-3xl text-center">
           <span className="inline-block rounded-full border border-orange-200 bg-orange-50 px-4 py-1.5 text-xs font-medium uppercase tracking-[0.2em] text-[#FF6B35]">
             Careers
@@ -141,3 +141,4 @@ export default function CareersPage() {
     </main>
   );
 }
+

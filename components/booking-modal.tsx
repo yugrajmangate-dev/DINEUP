@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
@@ -233,7 +233,7 @@ function BookingModalPanel({
 
   return (
     <motion.div
-      className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6"
+      className="fixed inset-0 z-100 flex items-center justify-center p-4 sm:p-6"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
@@ -245,9 +245,9 @@ function BookingModalPanel({
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.96, y: 16 }}
         transition={{ type: "spring", stiffness: 280, damping: 28 }}
-        className="relative w-full max-w-2xl overflow-hidden rounded-[32px] bg-white shadow-[0_32px_80px_rgba(0,0,0,0.28)]"
+        className="relative w-full max-w-2xl overflow-hidden rounded-4xl bg-white shadow-[0_32px_80px_rgba(0,0,0,0.28)]"
       >
-        {/* ── HERO IMAGE HEADER ──────────────────────────────────────────────── */}
+        {/* -- HERO IMAGE HEADER ------------------------------------------------ */}
         <div className="relative h-52 w-full overflow-hidden">
           <Image
             src={heroImage}
@@ -258,11 +258,13 @@ function BookingModalPanel({
             onError={() => setHeroImgError(true)}
           />
           {/* Deep gradient overlay so text is always readable */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
+          <div className="absolute inset-0 bg-linear-to-t from-black/80 via-black/30 to-transparent" />
 
-          {/* Close button — top right */}
+          {/* Close button � top right */}
           <button
             type="button"
+            title="Close booking dialog"
+            aria-label="Close booking dialog"
             onClick={onClose}
             className="absolute right-4 top-4 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-sm hover:bg-black/60 active:scale-95 transition-all"
           >
@@ -289,7 +291,7 @@ function BookingModalPanel({
           </div>
         </div>
 
-        {/* ── CONTACT PILLS ───────────────────────────────────────────────────── */}
+        {/* -- CONTACT PILLS ----------------------------------------------------- */}
         <div className="flex flex-wrap gap-2 border-b border-gray-100 px-6 py-4">
           <a
             href={`tel:${restaurant.phone.replace(/\s+/g, "")}`}
@@ -307,7 +309,7 @@ function BookingModalPanel({
           </a>
         </div>
 
-        {/* ── BODY ────────────────────────────────────────────────────────────── */}
+        {/* -- BODY -------------------------------------------------------------- */}
         <div className="px-6 py-5 sm:px-7">
           {!user ? (
             <div className="space-y-5">
@@ -353,7 +355,7 @@ function BookingModalPanel({
                     type="button"
                     onClick={() => setSelectedDate(d.key)}
                     className={cn(
-                      "flex min-w-[4.5rem] flex-shrink-0 flex-col items-center rounded-2xl border px-3 py-3 transition-all active:scale-95",
+                      "flex min-w-18 shrink-0 flex-col items-center rounded-2xl border px-3 py-3 transition-all active:scale-95",
                       active
                         ? "border-[#FF6B35] bg-[#FF6B35] shadow-[0_6px_20px_rgba(255,107,53,0.3)]"
                         : "border-gray-200 bg-white hover:border-orange-200 hover:bg-orange-50",
@@ -382,6 +384,8 @@ function BookingModalPanel({
               <div className="flex items-center justify-between rounded-2xl border border-gray-200 bg-gray-50 p-3">
                 <button
                   type="button"
+                  title="Decrease guests"
+                  aria-label="Decrease guests"
                   onClick={() => setPartySize((v) => Math.max(1, v - 1))}
                   className="flex h-10 w-10 items-center justify-center rounded-xl border border-gray-300 bg-white text-slate-600 shadow-sm hover:bg-gray-100 active:scale-95"
                 >
@@ -393,6 +397,8 @@ function BookingModalPanel({
                 </div>
                 <button
                   type="button"
+                  title="Increase guests"
+                  aria-label="Increase guests"
                   onClick={() => setPartySize((v) => Math.min(12, v + 1))}
                   className="flex h-10 w-10 items-center justify-center rounded-xl border border-gray-300 bg-white text-slate-600 shadow-sm hover:bg-gray-100 active:scale-95"
                 >
@@ -461,7 +467,7 @@ function BookingModalPanel({
                 </motion.span>
               ) : isSubmitting ? (
                 <motion.span key="wait" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
-                  Securing your table…
+                  Securing your table�
                 </motion.span>
               ) : (
                 <motion.span key="idle" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
@@ -477,3 +483,5 @@ function BookingModalPanel({
     </motion.div>
   );
 }
+
+
