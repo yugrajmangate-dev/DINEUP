@@ -1,14 +1,13 @@
 "use client";
 
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { collection, getDocs, orderBy, query, where } from "firebase/firestore";
 import { CreditCard, IndianRupee, Receipt, Wallet } from "lucide-react";
 
 import { AccountAuthGate } from "@/components/account-auth-gate";
-import { db } from "@/lib/firebase";
 import { restaurants } from "@/lib/restaurants";
-import { useAuthStore } from "@/store/auth-store";
 
+import { fetchUserBookings, getCachedUserBookings } from "@/lib/user-bookings-cache";
+import { useAuthStore } from "@/store/auth-store";
 type BookingStatus = "confirmed" | "cancelled";
 
 type Booking = {
@@ -57,28 +56,38 @@ export default function PaymentsPage() {
 
   useEffect(() => {
     if (!user) return;
+    let active = true;
+
+    const cached = getCachedUserBookings(user.uid);
+    if (cached) {
+      setBookings(cached as Booking[]);
+      setIsLoading(false);
+    } else {
+      setIsLoading(true);
+    }
 
     const load = async () => {
-      setIsLoading(true);
       try {
-        const snapshot = await getDocs(query(
-          collection(db, "bookings"),
-          where("userId", "==", user.uid),
-          orderBy("createdAt", "desc"),
-        ));
-
-        setBookings(snapshot.docs.map((docSnap) => ({
-          id: docSnap.id,
-          ...(docSnap.data() as Omit<Booking, "id">),
-        })));
+        const docs = await fetchUserBookings(user.uid, !cached);
+        if (active) {
+          setBookings(docs as Booking[]);
+        }
       } catch {
-        setBookings([]);
+        if (active) {
+          setBookings([]);
+        }
       } finally {
-        setIsLoading(false);
+        if (active) {
+          setIsLoading(false);
+        }
       }
     };
 
     void load();
+
+    return () => {
+      active = false;
+    };
   }, [user]);
 
   if (!mounted || status === "loading" || (status === "authenticated" && isLoading)) {

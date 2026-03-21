@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { collection, deleteDoc, doc, getDocs, orderBy, query, where } from "firebase/firestore";
+import { deleteDoc, doc } from "firebase/firestore";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   CalendarDays,
@@ -17,6 +17,7 @@ import Link from "next/link";
 
 import { AccountAuthGate } from "@/components/account-auth-gate";
 import { db } from "@/lib/firebase";
+import { fetchUserBookings, getCachedUserBookings, setCachedUserBookings } from "@/lib/user-bookings-cache";
 import { useAuthStore } from "@/store/auth-store";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -58,30 +59,39 @@ export default function DashboardPage() {
   // Fetch bookings from Firestore.
   useEffect(() => {
     if (!user) return;
+    let active = true;
+
+    const cached = getCachedUserBookings(user.uid);
+    if (cached) {
+      setBookings(cached as Booking[]);
+      setIsLoading(false);
+    } else {
+      setIsLoading(true);
+    }
 
     const fetchBookings = async () => {
-      setIsLoading(true);
       try {
-        const q = query(
-          collection(db, "bookings"),
-          where("userId", "==", user.uid),
-          orderBy("createdAt", "desc"),
-        );
-        const snapshot = await getDocs(q);
-        const docs: Booking[] = snapshot.docs.map((docSnap) => ({
-          id: docSnap.id,
-          ...(docSnap.data() as Omit<Booking, "id">),
-        }));
-        setBookings(docs);
+        const docs = await fetchUserBookings(user.uid, !cached);
+        if (active) {
+          setBookings(docs as Booking[]);
+        }
       } catch {
         // Firestore might be unconfigured in dev — show empty state gracefully.
-        setBookings([]);
+        if (active) {
+          setBookings([]);
+        }
       } finally {
-        setIsLoading(false);
+        if (active) {
+          setIsLoading(false);
+        }
       }
     };
 
     void fetchBookings();
+
+    return () => {
+      active = false;
+    };
   }, [user]);
 
   // Cancel / delete a booking.
@@ -91,7 +101,13 @@ export default function DashboardPage() {
       await deleteDoc(doc(db, "bookings", bookingId));
       // Remove optimistically after animation completes (350 ms).
       setTimeout(() => {
-        setBookings((prev) => prev.filter((b) => b.id !== bookingId));
+        setBookings((prev) => {
+          const updated = prev.filter((b) => b.id !== bookingId);
+          if (user) {
+            setCachedUserBookings(user.uid, updated as Booking[]);
+          }
+          return updated;
+        });
         setCancellingId(null);
       }, 350);
     } catch {
