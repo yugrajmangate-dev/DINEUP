@@ -62,6 +62,8 @@ function createSystemPrompt(userLocation: UserLocation | null | undefined) {
     "Only after the user chooses one option should you proceed to final confirmation.",
     "If the user mentions a restaurant by name, convert it to the matching inventory id before calling a tool.",
     "Always pass booking/check times in 24-hour HH:mm format when possible (e.g. 20:00).",
+    "Never use past dates or past times. If a user asks with only day/month (e.g. 29 January), infer the nearest future valid date.",
+    "If the provided date/time is in the past, ask for a corrected future date/time before proceeding.",
     formatLocationContext(userLocation),
     "\nRestaurant inventory:\n" + buildInventoryContext(),
   ].join("\n\n");
@@ -83,6 +85,109 @@ function humanizeMissingFields(missingFields: string[]) {
   };
 
   return missingFields.map((field) => labels[field] ?? field);
+}
+
+function parseIsoDate(date: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
+
+  const [year, month, day] = date.split("-").map((value) => Number.parseInt(value, 10));
+  const parsed = new Date(year, month - 1, day);
+
+  if (
+    Number.isNaN(parsed.getTime())
+    || parsed.getFullYear() !== year
+    || parsed.getMonth() !== month - 1
+    || parsed.getDate() !== day
+  ) {
+    return null;
+  }
+
+  parsed.setHours(0, 0, 0, 0);
+  return parsed;
+}
+
+function parseTimeToMinutes(time: string) {
+  const match = time.trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return null;
+
+  const hour = Number.parseInt(match[1], 10);
+  const minute = Number.parseInt(match[2], 10);
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+
+  return hour * 60 + minute;
+}
+
+function formatIsoDate(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function nextFutureDateSuggestion(reference: Date, originalDate: Date) {
+  const now = new Date(reference);
+  now.setHours(0, 0, 0, 0);
+
+  let suggested = new Date(now.getFullYear(), originalDate.getMonth(), originalDate.getDate());
+  suggested.setHours(0, 0, 0, 0);
+
+  if (suggested <= now) {
+    suggested = new Date(now.getFullYear() + 1, originalDate.getMonth(), originalDate.getDate());
+    suggested.setHours(0, 0, 0, 0);
+  }
+
+  return suggested;
+}
+
+function validateDateAndTime(date: string | undefined, time: string | undefined) {
+  const now = new Date();
+  const today = new Date(now);
+  today.setHours(0, 0, 0, 0);
+
+  let parsedDate: Date | null = null;
+  if (date) {
+    parsedDate = parseIsoDate(date);
+    if (!parsedDate) {
+      return {
+        ok: false,
+        issue: "date" as const,
+        message: "Please use a valid date in YYYY-MM-DD format.",
+      };
+    }
+
+    if (parsedDate < today) {
+      const suggestion = nextFutureDateSuggestion(now, parsedDate);
+      return {
+        ok: false,
+        issue: "date" as const,
+        message: `That date is in the past. Please choose a future date, for example ${formatIsoDate(suggestion)}.`,
+      };
+    }
+  }
+
+  if (time) {
+    const minutes = parseTimeToMinutes(time);
+    if (minutes === null) {
+      return {
+        ok: false,
+        issue: "time" as const,
+        message: "Please use time in HH:mm (24-hour), for example 20:00.",
+      };
+    }
+
+    if (parsedDate && parsedDate.getTime() === today.getTime()) {
+      const nowMinutes = now.getHours() * 60 + now.getMinutes();
+      if (minutes <= nowMinutes) {
+        return {
+          ok: false,
+          issue: "time" as const,
+          message: "That time has already passed today. Please choose a later time.",
+        };
+      }
+    }
+  }
+
+  return { ok: true };
 }
 
 function slugifyRestaurantInput(value: string) {
@@ -147,6 +252,21 @@ const appTools = {
         .describe("The requested time slot, preferably in HH:mm (24-hour) e.g. '20:00'."),
     }),
     execute: async ({ restaurantId, date, time }) => {
+      const dateTimeValidation = validateDateAndTime(date, time);
+      if (!dateTimeValidation.ok) {
+        return {
+          ok: false,
+          available: false,
+          restaurantId,
+          requestedSlot: time,
+          remainingSlots: [] as string[],
+          error: dateTimeValidation.message,
+          message: dateTimeValidation.message,
+          date: date ?? null,
+          time,
+        };
+      }
+
       const restaurant = resolveRestaurantIdentifier(restaurantId);
       if (!restaurant) {
         return {
@@ -221,6 +341,25 @@ const appTools = {
             { id: "pay-now", label: "Pay now", status: "coming_soon" },
             { id: "pay-later", label: "Book now, pay at venue", status: "available" },
           ],
+        };
+      }
+
+      const dateTimeValidation = validateDateAndTime(date, time);
+      if (!dateTimeValidation.ok) {
+        const missingIssue = dateTimeValidation.issue as string;
+        return {
+          ok: true,
+          booked: false,
+          readyForConfirmation: false,
+          requiresDetails: true,
+          restaurantId,
+          requestedSlot: time,
+          partySize,
+          date,
+          slots: [] as string[],
+          bookingMessage: dateTimeValidation.message,
+          missingFields: [missingIssue],
+          missingFieldLabels: humanizeMissingFields([missingIssue]),
         };
       }
 
