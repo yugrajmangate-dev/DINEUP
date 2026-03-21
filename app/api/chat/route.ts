@@ -87,6 +87,44 @@ function humanizeMissingFields(missingFields: string[]) {
   return missingFields.map((field) => labels[field] ?? field);
 }
 
+const BOOKING_TIME_ZONE = "Asia/Kolkata";
+
+type ZonedNow = {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+};
+
+function getZonedNow(timeZone: string): ZonedNow {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(new Date());
+
+  const map = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+
+  return {
+    year: Number.parseInt(map.year, 10),
+    month: Number.parseInt(map.month, 10),
+    day: Number.parseInt(map.day, 10),
+    hour: Number.parseInt(map.hour, 10),
+    minute: Number.parseInt(map.minute, 10),
+  };
+}
+
+function asDateOnly(date: Date) {
+  const copy = new Date(date);
+  copy.setHours(0, 0, 0, 0);
+  return copy;
+}
+
 function parseIsoDate(date: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
 
@@ -107,14 +145,35 @@ function parseIsoDate(date: string) {
 }
 
 function parseTimeToMinutes(time: string) {
-  const match = time.trim().match(/^(\d{1,2}):(\d{2})$/);
-  if (!match) return null;
+  const value = time.trim().toLowerCase();
 
-  const hour = Number.parseInt(match[1], 10);
-  const minute = Number.parseInt(match[2], 10);
-  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+  const twentyFour = value.match(/^(\d{1,2}):(\d{2})$/);
+  if (twentyFour) {
+    const hour = Number.parseInt(twentyFour[1], 10);
+    const minute = Number.parseInt(twentyFour[2], 10);
+    if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+    return {
+      minutes: hour * 60 + minute,
+      normalized: `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`,
+    };
+  }
 
-  return hour * 60 + minute;
+  const twelveHour = value.match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)$/);
+  if (!twelveHour) return null;
+
+  const rawHour = Number.parseInt(twelveHour[1], 10);
+  const minute = Number.parseInt(twelveHour[2] ?? "00", 10);
+  const meridiem = twelveHour[3];
+
+  if (rawHour < 1 || rawHour > 12 || minute < 0 || minute > 59) return null;
+
+  const baseHour = rawHour % 12;
+  const hour = meridiem === "pm" ? baseHour + 12 : baseHour;
+
+  return {
+    minutes: hour * 60 + minute,
+    normalized: `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`,
+  };
 }
 
 function formatIsoDate(date: Date) {
@@ -139,24 +198,89 @@ function nextFutureDateSuggestion(reference: Date, originalDate: Date) {
   return suggested;
 }
 
+function parseNaturalDate(input: string, zonedNow: ZonedNow) {
+  const normalized = input
+    .trim()
+    .toLowerCase()
+    .replace(/,/g, " ")
+    .replace(/\b(\d{1,2})(st|nd|rd|th)\b/g, "$1")
+    .replace(/\s+/g, " ");
+
+  const monthMap: Record<string, number> = {
+    january: 0, jan: 0,
+    february: 1, feb: 1,
+    march: 2, mar: 2,
+    april: 3, apr: 3,
+    may: 4,
+    june: 5, jun: 5,
+    july: 6, jul: 6,
+    august: 7, aug: 7,
+    september: 8, sep: 8, sept: 8,
+    october: 9, oct: 9,
+    november: 10, nov: 10,
+    december: 11, dec: 11,
+  };
+
+  const dayMonth = normalized.match(/^(\d{1,2})\s+([a-z]+)(?:\s+(\d{4}))?$/);
+  const monthDay = normalized.match(/^([a-z]+)\s+(\d{1,2})(?:\s+(\d{4}))?$/);
+
+  const day = dayMonth ? Number.parseInt(dayMonth[1], 10) : monthDay ? Number.parseInt(monthDay[2], 10) : null;
+  const monthText = dayMonth ? dayMonth[2] : monthDay ? monthDay[1] : null;
+  const explicitYear = dayMonth
+    ? dayMonth[3]
+    : monthDay
+      ? monthDay[3]
+      : undefined;
+
+  if (!day || !monthText || !(monthText in monthMap)) return null;
+
+  const month = monthMap[monthText];
+  const hasExplicitYear = typeof explicitYear === "string";
+  const year = hasExplicitYear ? Number.parseInt(explicitYear as string, 10) : zonedNow.year;
+
+  let parsed = new Date(year, month, day);
+  if (
+    Number.isNaN(parsed.getTime())
+    || parsed.getFullYear() !== year
+    || parsed.getMonth() !== month
+    || parsed.getDate() !== day
+  ) {
+    return null;
+  }
+
+  parsed = asDateOnly(parsed);
+
+  if (!hasExplicitYear) {
+    const today = asDateOnly(new Date(zonedNow.year, zonedNow.month - 1, zonedNow.day));
+    if (parsed < today) {
+      parsed = asDateOnly(new Date(zonedNow.year + 1, month, day));
+    }
+  }
+
+  return parsed;
+}
+
 function validateDateAndTime(date: string | undefined, time: string | undefined) {
-  const now = new Date();
-  const today = new Date(now);
-  today.setHours(0, 0, 0, 0);
+  const zonedNow = getZonedNow(BOOKING_TIME_ZONE);
+  const nowDate = new Date(zonedNow.year, zonedNow.month - 1, zonedNow.day, zonedNow.hour, zonedNow.minute);
+  const today = asDateOnly(new Date(zonedNow.year, zonedNow.month - 1, zonedNow.day));
 
   let parsedDate: Date | null = null;
+  let normalizedDate: string | undefined;
   if (date) {
-    parsedDate = parseIsoDate(date);
+    parsedDate = parseIsoDate(date) ?? parseNaturalDate(date, zonedNow);
     if (!parsedDate) {
       return {
         ok: false,
         issue: "date" as const,
-        message: "Please use a valid date in YYYY-MM-DD format.",
+        message: "Please provide a valid date, for example 2026-03-25 or 25 March.",
       };
     }
 
+    normalizedDate = formatIsoDate(parsedDate);
+
     if (parsedDate < today) {
-      const suggestion = nextFutureDateSuggestion(now, parsedDate);
+      const suggestion = nextFutureDateSuggestion(nowDate, parsedDate);
       return {
         ok: false,
         issue: "date" as const,
@@ -165,19 +289,22 @@ function validateDateAndTime(date: string | undefined, time: string | undefined)
     }
   }
 
+  let normalizedTime: string | undefined;
   if (time) {
-    const minutes = parseTimeToMinutes(time);
-    if (minutes === null) {
+    const parsedTime = parseTimeToMinutes(time);
+    if (!parsedTime) {
       return {
         ok: false,
         issue: "time" as const,
-        message: "Please use time in HH:mm (24-hour), for example 20:00.",
+        message: "Please provide a valid time like 20:00 or 8:00 PM.",
       };
     }
 
+    normalizedTime = parsedTime.normalized;
+
     if (parsedDate && parsedDate.getTime() === today.getTime()) {
-      const nowMinutes = now.getHours() * 60 + now.getMinutes();
-      if (minutes <= nowMinutes) {
+      const nowMinutes = zonedNow.hour * 60 + zonedNow.minute;
+      if (parsedTime.minutes <= nowMinutes) {
         return {
           ok: false,
           issue: "time" as const,
@@ -187,7 +314,11 @@ function validateDateAndTime(date: string | undefined, time: string | undefined)
     }
   }
 
-  return { ok: true };
+  return {
+    ok: true,
+    normalizedDate,
+    normalizedTime,
+  };
 }
 
 function slugifyRestaurantInput(value: string) {
@@ -253,17 +384,19 @@ const appTools = {
     }),
     execute: async ({ restaurantId, date, time }) => {
       const dateTimeValidation = validateDateAndTime(date, time);
+      const normalizedDate = dateTimeValidation.ok ? dateTimeValidation.normalizedDate : date;
+      const normalizedTime = dateTimeValidation.ok ? dateTimeValidation.normalizedTime : time;
       if (!dateTimeValidation.ok) {
         return {
           ok: false,
           available: false,
           restaurantId,
-          requestedSlot: time,
+          requestedSlot: normalizedTime,
           remainingSlots: [] as string[],
           error: dateTimeValidation.message,
           message: dateTimeValidation.message,
-          date: date ?? null,
-          time,
+          date: normalizedDate ?? null,
+          time: normalizedTime,
         };
       }
 
@@ -273,24 +406,24 @@ const appTools = {
           ok: false,
           available: false,
           restaurantId,
-          requestedSlot: time,
+          requestedSlot: normalizedTime,
           remainingSlots: [] as string[],
           error: `Restaurant '${restaurantId}' not found.`,
           message: `I couldn’t match '${restaurantId}' to a restaurant in DineUp. Please try the restaurant name again.`,
-          date: date ?? null,
-          time,
+          date: normalizedDate ?? null,
+          time: normalizedTime,
         };
       }
 
-      const result = checkAvailability(restaurant.id, time);
+      const result = checkAvailability(restaurant.id, normalizedTime as string);
       return {
         ...result,
-        date: date ?? null,
-        time,
+        date: normalizedDate ?? null,
+        time: normalizedTime,
         message: result.ok
           ? result.available
-            ? `Great news — ${result.restaurantName} has tables available${date ? ` on ${date}` : ""} at ${result.requestedSlot}.`
-            : `${result.restaurantName} is fully booked${date ? ` on ${date}` : ""} at ${result.requestedSlot}. Consider: ${result.remainingSlots.join(", ") || "no more slots today"}.`
+            ? `Great news — ${result.restaurantName} has tables available${normalizedDate ? ` on ${normalizedDate}` : ""} at ${result.requestedSlot}.`
+            : `${result.restaurantName} is fully booked${normalizedDate ? ` on ${normalizedDate}` : ""} at ${result.requestedSlot}. Consider: ${result.remainingSlots.join(", ") || "no more slots today"}.`
           : result.message,
       };
     },
@@ -345,6 +478,8 @@ const appTools = {
       }
 
       const dateTimeValidation = validateDateAndTime(date, time);
+      const normalizedDate = dateTimeValidation.ok ? dateTimeValidation.normalizedDate : date;
+      const normalizedTime = dateTimeValidation.ok ? dateTimeValidation.normalizedTime : time;
       if (!dateTimeValidation.ok) {
         const missingIssue = dateTimeValidation.issue as string;
         return {
@@ -353,9 +488,9 @@ const appTools = {
           readyForConfirmation: false,
           requiresDetails: true,
           restaurantId,
-          requestedSlot: time,
+          requestedSlot: normalizedTime,
           partySize,
-          date,
+          date: normalizedDate,
           slots: [] as string[],
           bookingMessage: dateTimeValidation.message,
           missingFields: [missingIssue],
@@ -369,7 +504,7 @@ const appTools = {
           ok: false,
           booked: false,
           restaurantId,
-          requestedSlot: time,
+          requestedSlot: normalizedTime,
           partySize,
           slots: [] as string[],
           error: `Restaurant '${restaurantId}' not found.`,
@@ -379,7 +514,7 @@ const appTools = {
         };
       }
 
-      const availability = checkAvailability(restaurant.id, time as string);
+      const availability = checkAvailability(restaurant.id, normalizedTime as string);
       if (!availability.ok) {
         return {
           ok: false,
@@ -388,9 +523,9 @@ const appTools = {
           requiresDetails: true,
           restaurantId: restaurant.id,
           restaurantName: restaurant.name,
-          requestedSlot: time,
+          requestedSlot: normalizedTime,
           partySize,
-          date,
+          date: normalizedDate,
           slots: [] as string[],
           bookingMessage: availability.message,
           error: availability.message,
@@ -407,7 +542,7 @@ const appTools = {
           restaurantName: restaurant.name,
           requestedSlot: availability.requestedSlot,
           partySize,
-          date,
+          date: normalizedDate,
           slots: availability.remainingSlots,
           bookingMessage: `${restaurant.name} is unavailable at ${availability.requestedSlot}. Please choose another slot.`,
           missingFields: ["time"],
@@ -427,7 +562,7 @@ const appTools = {
         bookingMessage: `Perfect. Your table is ready to reserve at ${restaurant.name}, ${availability.requestedSlot}, party of ${partySize}. Choose a payment option to continue.`,
         requestedSlot: availability.requestedSlot,
         partySize,
-        date: date ?? null,
+        date: normalizedDate ?? null,
         restaurantId: restaurant.id,
         restaurantName: restaurant.name,
         neighborhood: restaurant.neighborhood,
