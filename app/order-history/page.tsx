@@ -5,7 +5,6 @@ import { collection, getDocs, orderBy, query, where } from "firebase/firestore";
 import { CalendarDays, History, MapPin, Users } from "lucide-react";
 
 import { AccountAuthGate } from "@/components/account-auth-gate";
-import { AccountNav } from "@/components/account-nav";
 import { db } from "@/lib/firebase";
 import { useAuthStore } from "@/store/auth-store";
 
@@ -87,7 +86,6 @@ export default function OrderHistoryPage() {
               <h1 className="font-display text-4xl text-slate-900 sm:text-5xl">Order History</h1>
               <p className="mt-2 text-slate-500">A complete timeline of the reservations placed through your DineUp account.</p>
             </div>
-            <AccountNav />
           </div>
         </header>
 

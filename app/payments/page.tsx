@@ -5,7 +5,6 @@ import { collection, getDocs, orderBy, query, where } from "firebase/firestore";
 import { CreditCard, IndianRupee, Receipt, Wallet } from "lucide-react";
 
 import { AccountAuthGate } from "@/components/account-auth-gate";
-import { AccountNav } from "@/components/account-nav";
 import { db } from "@/lib/firebase";
 import { restaurants } from "@/lib/restaurants";
 import { useAuthStore } from "@/store/auth-store";
@@ -109,7 +108,6 @@ export default function PaymentsPage() {
               <h1 className="font-display text-4xl text-slate-900 sm:text-5xl">Payments</h1>
               <p className="mt-2 text-slate-500">Track estimated charges, receipts, and payment references for your reservations.</p>
             </div>
-            <AccountNav />
           </div>
         </header>
 

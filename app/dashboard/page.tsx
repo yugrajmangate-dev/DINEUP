@@ -17,7 +17,6 @@ import {
 import Link from "next/link";
 
 import { AccountAuthGate } from "@/components/account-auth-gate";
-import { AccountNav } from "@/components/account-nav";
 import { db } from "@/lib/firebase";
 import { useAuthStore } from "@/store/auth-store";
 
@@ -136,7 +135,6 @@ export default function DashboardPage() {
               </h1>
               <p className="mt-2 text-slate-500">Here are all your DineUp reservations.</p>
             </div>
-            <AccountNav />
           </div>
         </header>
 
