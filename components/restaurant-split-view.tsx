@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, type Variants } from "framer-motion";
+import dynamic from "next/dynamic";
 import {
   ArrowUpRight,
   CalendarDays,
@@ -20,13 +21,14 @@ import {
   UtensilsCrossed,
 } from "lucide-react";
 
-import { BookingModal } from "@/components/booking-modal";
 import type { UserLocation } from "@/lib/geo";
 import { calculateDistanceKm, formatDistanceLabel } from "@/lib/geo";
 import type { GeolocationStatus } from "@/hooks/use-geolocation";
 import type { Restaurant, RestaurantIcon } from "@/lib/restaurants";
 import { cn } from "@/lib/utils";
 import { useMapStore } from "@/store/map-store";
+
+const BookingModal = dynamic(() => import("@/components/booking-modal").then(mod => mod.BookingModal), { ssr: false });
 
 // ─── Icon map ─────────────────────────────────────────────────────────────────
 
@@ -231,7 +233,7 @@ export function RestaurantSplitView({
               initial="hidden"
               animate="show"
             >
-              {(filteredRestaurants.length ? filteredRestaurants : restaurantsWithDistance).map((entry) => (
+              {(filteredRestaurants.length ? filteredRestaurants : restaurantsWithDistance).map((entry, idx) => (
                 <RestaurantCard
                   key={entry.restaurant.id}
                   restaurant={entry.restaurant}
@@ -239,6 +241,7 @@ export function RestaurantSplitView({
                   isActive={entry.restaurant.id === activeRestaurant?.restaurant.id}
                   onSelect={() => selectRestaurant(entry.restaurant.id)}
                   onBookNow={() => setBookingRestaurantId(entry.restaurant.id)}
+                  isPriority={idx < 4}
                 />
               ))}
             </motion.div>
@@ -277,9 +280,10 @@ type RestaurantCardProps = {
   isActive: boolean;
   onSelect: () => void;
   onBookNow: () => void;
+  isPriority?: boolean;
 };
 
-function RestaurantCard({ restaurant, distanceLabel, isActive, onSelect, onBookNow }: RestaurantCardProps) {
+function RestaurantCard({ restaurant, distanceLabel, isActive, onSelect, onBookNow, isPriority }: RestaurantCardProps) {
   const Icon = iconMap[restaurant.icon];
   const [currentImg, setCurrentImg] = useState(0);
   const [imgError, setImgError] = useState(false);
@@ -323,6 +327,7 @@ function RestaurantCard({ restaurant, distanceLabel, isActive, onSelect, onBookN
               src={currentSrc}
               alt={`${restaurant.name} dish ${currentImg + 1}`}
               fill
+              priority={isPriority}
               className="object-cover"
               sizes="(min-width: 1280px) 22vw, (min-width: 1024px) 32vw, 90vw"
               onError={() => setImgError(true)}

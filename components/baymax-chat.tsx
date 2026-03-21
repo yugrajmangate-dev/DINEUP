@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { useChat } from "@ai-sdk/react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -21,10 +22,11 @@ import { DefaultChatTransport, type UIMessage } from "ai";
 import type { GeolocationStatus } from "@/hooks/use-geolocation";
 import type { UserLocation } from "@/lib/geo";
 import { restaurants } from "@/lib/restaurants";
-import { BookingModal } from "@/components/booking-modal";
 import { useAuthStore } from "@/store/auth-store";
 import { cn } from "@/lib/utils";
 import { useMapStore } from "@/store/map-store";
+
+const BookingModal = dynamic(() => import("@/components/booking-modal").then(mod => mod.BookingModal), { ssr: false });
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -94,6 +96,13 @@ type MessagePart =
   | ToolInvocationPart
   | StaticToolUIPart
   | DynamicToolUIPart;
+
+type BookingDraft = {
+  restaurantId: string;
+  date?: string;
+  time?: string;
+  partySize?: number;
+};
 
 function isStaticToolUIPart(part: MessagePart): part is StaticToolUIPart {
   return part.type.startsWith("tool-") && part.type !== "tool-call" && part.type !== "tool-result";
@@ -174,22 +183,30 @@ function ToolErrorCard({
 
 // ─── Booking card ─────────────────────────────────────────────────────────────
 
-function BookingCard({ result, onBook }: { result: Record<string, unknown>; onBook: (id: string) => void }) {
+function BookingCard({ result, onBook }: { result: Record<string, unknown>; onBook: (draft: BookingDraft) => void }) {
   const restaurantId = result.restaurantId as string;
-  const restaurantName = result.restaurantName as string;
-  const neighborhood = result.neighborhood as string;
-  const cuisine = result.cuisine as string;
-  const rating = result.rating as number;
-  const price = result.price as string;
+  const restaurant = restaurants.find((r) => r.id === restaurantId);
+
+  const restaurantName = (result.restaurantName as string) ?? restaurant?.name;
+  const neighborhood = (result.neighborhood as string) ?? restaurant?.neighborhood;
+  const cuisine = (result.cuisine as string) ?? restaurant?.cuisine;
+  const rating = (result.rating as number) ?? restaurant?.rating;
+  const price = (result.price as string) ?? restaurant?.price;
   const slots = (result.slots as string[]) ?? [];
   const booked = Boolean(result.booked);
+  const readyForConfirmation = Boolean(result.readyForConfirmation);
+  const requiresDetails = Boolean(result.requiresDetails);
   const bookingMessage = result.bookingMessage as string | undefined;
   const requestedSlot = result.requestedSlot as string | undefined;
+  const date = result.date as string | undefined;
+  const partySize = typeof result.partySize === "number" ? result.partySize : undefined;
+  const estimatedSubtotal = typeof result.estimatedSubtotal === "number" ? result.estimatedSubtotal : null;
+  const prebookingAmount = typeof result.prebookingAmount === "number" ? result.prebookingAmount : null;
+  const missingFieldLabels = ((result.missingFieldLabels as string[] | undefined) ?? []).filter(Boolean);
 
   // Look up coordinates for the "View on Map" button
   const setMapTarget = useMapStore((s) => s.setMapTarget);
   const { user, openAuthModal } = useAuthStore();
-  const restaurant = restaurants.find((r) => r.id === restaurantId);
 
   return (
     <div className="flex justify-start">
@@ -206,7 +223,7 @@ function BookingCard({ result, onBook }: { result: Record<string, unknown>; onBo
               <p className="mt-0.5 font-semibold text-white">{restaurantName}</p>
             </div>
             <span className="mt-0.5 flex items-center gap-1 rounded-full bg-white/20 px-2.5 py-1 text-xs font-semibold text-white">
-              <Star className="h-3 w-3 fill-white text-white" />{rating.toFixed(1)}
+              <Star className="h-3 w-3 fill-white text-white" />{rating?.toFixed(1) ?? "-"}
             </span>
           </div>
           <div className="mt-1.5 flex items-center gap-3 text-xs text-white/70">
@@ -233,9 +250,29 @@ function BookingCard({ result, onBook }: { result: Record<string, unknown>; onBo
           <div className="px-4 pb-2">
             <div className={cn(
               "rounded-xl border px-3 py-2 text-xs",
-              booked ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-orange-200 bg-orange-50 text-orange-700",
+              readyForConfirmation
+                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                : "border-orange-200 bg-orange-50 text-orange-700",
             )}>
               {bookingMessage}
+            </div>
+          </div>
+        )}
+
+        {requiresDetails && missingFieldLabels.length > 0 && (
+          <div className="px-4 pb-2">
+            <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-slate-600">
+              Missing details: {missingFieldLabels.join(", ")}.
+            </div>
+          </div>
+        )}
+
+        {readyForConfirmation && estimatedSubtotal !== null && prebookingAmount !== null && (
+          <div className="px-4 pb-2">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
+              <p className="font-semibold text-slate-900">Pre-booking payment options</p>
+              <p className="mt-1">Estimated bill: ₹{estimatedSubtotal.toLocaleString("en-IN")}</p>
+              <p>Pay-now amount (20%): ₹{prebookingAmount.toLocaleString("en-IN")}</p>
             </div>
           </div>
         )}
@@ -250,7 +287,18 @@ function BookingCard({ result, onBook }: { result: Record<string, unknown>; onBo
 
         {/* CTA row */}
         <div className="px-4 pb-4 flex gap-2">
-          {!booked && (
+          {readyForConfirmation && (
+            <button
+              type="button"
+              disabled
+              className="flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-gray-100 px-3 py-2.5 text-xs font-semibold text-slate-500"
+              title="Payment gateway integration coming soon"
+            >
+              Pay now (coming soon)
+            </button>
+          )}
+
+          {!booked && restaurantId && !requiresDetails && (
             <button
               type="button"
               onClick={() => {
@@ -258,11 +306,16 @@ function BookingCard({ result, onBook }: { result: Record<string, unknown>; onBo
                   openAuthModal();
                   return;
                 }
-                onBook(restaurantId);
+                onBook({
+                  restaurantId,
+                  date,
+                  time: requestedSlot,
+                  partySize,
+                });
               }}
               className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#FF6B35] py-2.5 text-sm font-bold text-white shadow-[0_4px_16px_rgba(255,107,53,0.3)] hover:shadow-[0_8px_24px_rgba(255,107,53,0.4)] active:scale-[0.98] transition-all"
             >
-              <CalendarCheck className="h-4 w-4" />{user ? "Reserve table" : "Sign in to reserve"}
+              <CalendarCheck className="h-4 w-4" />{user ? (readyForConfirmation ? "Book now, pay at venue" : "Reserve table") : "Sign in to reserve"}
             </button>
           )}
           {booked && requestedSlot && (
@@ -289,7 +342,7 @@ function renderToolResult(
   toolName: string,
   result: Record<string, unknown> | undefined,
   idx: number,
-  onBook: (id: string) => void,
+  onBook: (draft: BookingDraft) => void,
 ) {
   if (!result) {
     return <ToolErrorCard key={idx} title={toolName} message="Baymax completed the action, but no result payload was returned." />;
@@ -331,7 +384,7 @@ export function BaymaxChat({ userLocation, locationStatus }: BaymaxChatProps) {
   // Open automatically on every fresh page visit / reload.
   const [isOpen, setIsOpen] = useState(true);
   const [input, setInput] = useState("");
-  const [bookingRestaurantId, setBookingRestaurantId] = useState<string | null>(null);
+  const [bookingDraft, setBookingDraft] = useState<BookingDraft | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -371,8 +424,8 @@ export function BaymaxChat({ userLocation, locationStatus }: BaymaxChatProps) {
   };
 
   const bookingRestaurant = useMemo(
-    () => restaurants.find((r) => r.id === bookingRestaurantId) ?? null,
-    [bookingRestaurantId],
+    () => restaurants.find((r) => r.id === bookingDraft?.restaurantId) ?? null,
+    [bookingDraft],
   );
 
   return (
@@ -442,7 +495,7 @@ export function BaymaxChat({ userLocation, locationStatus }: BaymaxChatProps) {
                           return <ToolCallingBadge key={idx} toolName={inv.toolName} />;
                         }
                         if (inv.state === "result" && inv.result) {
-                          return renderToolResult(inv.toolName, inv.result, idx, setBookingRestaurantId);
+                          return renderToolResult(inv.toolName, inv.result, idx, setBookingDraft);
                         }
                         return null;
                       }
@@ -464,7 +517,7 @@ export function BaymaxChat({ userLocation, locationStatus }: BaymaxChatProps) {
                         }
 
                         if (part.state === "output-available") {
-                          return renderToolResult(toolName, part.output, idx, setBookingRestaurantId);
+                          return renderToolResult(toolName, part.output, idx, setBookingDraft);
                         }
 
                         return null;
@@ -484,7 +537,7 @@ export function BaymaxChat({ userLocation, locationStatus }: BaymaxChatProps) {
                         }
 
                         if (part.state === "output-available") {
-                          return renderToolResult(part.toolName, part.output, idx, setBookingRestaurantId);
+                          return renderToolResult(part.toolName, part.output, idx, setBookingDraft);
                         }
 
                         return null;
@@ -500,7 +553,7 @@ export function BaymaxChat({ userLocation, locationStatus }: BaymaxChatProps) {
                       }
                       if (part.type === "tool-result") {
                         const r = part as ToolResultPart;
-                        return renderToolResult(r.toolName, r.result ?? r.output, idx, setBookingRestaurantId);
+                        return renderToolResult(r.toolName, r.result ?? r.output, idx, setBookingDraft);
                       }
                       return null;
                     })}
@@ -605,8 +658,11 @@ export function BaymaxChat({ userLocation, locationStatus }: BaymaxChatProps) {
 
       <BookingModal
         restaurant={bookingRestaurant}
-        isOpen={!!bookingRestaurantId}
-        onClose={() => setBookingRestaurantId(null)}
+        initialDate={bookingDraft?.date}
+        initialTime={bookingDraft?.time}
+        initialPartySize={bookingDraft?.partySize}
+        isOpen={!!bookingDraft}
+        onClose={() => setBookingDraft(null)}
       />
     </>
   );

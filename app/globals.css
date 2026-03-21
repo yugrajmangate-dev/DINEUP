@@ -25,6 +25,10 @@
   --font-display: var(--font-display);
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 * {
   border-color: var(--border);
 }

@@ -26,6 +26,9 @@ import { cn } from "@/lib/utils";
 type BookingModalProps = {
   restaurant: Restaurant | null;
   distanceLabel?: string;
+  initialDate?: string;
+  initialTime?: string;
+  initialPartySize?: number;
   isOpen: boolean;
   onClose: () => void;
 };
@@ -59,14 +62,25 @@ function formatSlotLabel(slot: string) {
   return `${hour12}:${minute} ${meridiem}`;
 }
 
-export function BookingModal({ restaurant, distanceLabel, isOpen, onClose }: BookingModalProps) {
+export function BookingModal({
+  restaurant,
+  distanceLabel,
+  initialDate,
+  initialTime,
+  initialPartySize,
+  isOpen,
+  onClose,
+}: BookingModalProps) {
   return (
     <AnimatePresence>
       {isOpen && restaurant ? (
         <BookingModalPanel
-          key={`${restaurant.id}-modal`}
+          key={`${restaurant.id}-${initialDate ?? "date"}-${initialTime ?? "time"}-${initialPartySize ?? "party"}`}
           restaurant={restaurant}
           distanceLabel={distanceLabel}
+          initialDate={initialDate}
+          initialTime={initialTime}
+          initialPartySize={initialPartySize}
           onClose={onClose}
         />
       ) : null}
@@ -77,16 +91,26 @@ export function BookingModal({ restaurant, distanceLabel, isOpen, onClose }: Boo
 function BookingModalPanel({
   restaurant,
   distanceLabel,
+  initialDate,
+  initialTime,
+  initialPartySize,
   onClose,
 }: {
   restaurant: Restaurant;
   distanceLabel?: string;
+  initialDate?: string;
+  initialTime?: string;
+  initialPartySize?: number;
   onClose: () => void;
 }) {
   const { user, openAuthModal } = useAuthStore();
   const reservationDates = useMemo(() => buildReservationDates(), []);
-  const [partySize, setPartySize] = useState(2);
-  const [selectedDate, setSelectedDate] = useState<string>(reservationDates[0]?.key ?? "");
+  const validInitialPartySize = typeof initialPartySize === "number"
+    ? Math.max(1, Math.min(12, Math.floor(initialPartySize)))
+    : 2;
+  const hasInitialDate = Boolean(initialDate && reservationDates.some((d) => d.key === initialDate));
+  const [partySize, setPartySize] = useState(validInitialPartySize);
+  const [selectedDate, setSelectedDate] = useState<string>(hasInitialDate ? (initialDate as string) : (reservationDates[0]?.key ?? ""));
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
   const [selectedTime, setSelectedTime] = useState<string>("");
   const [slotMessage, setSlotMessage] = useState<string | null>(null);
@@ -128,8 +152,9 @@ function BookingModalPanel({
         const slots = payload.slots ?? [];
         if (!active) return;
 
+        const preferredTime = initialTime && slots.includes(initialTime) ? initialTime : slots[0];
         setAvailableSlots(slots);
-        setSelectedTime(slots[0] ?? "");
+        setSelectedTime(preferredTime ?? "");
         setSlotMessage(slots.length ? null : "No live slots available for now.");
       } catch {
         if (!active) return;
@@ -144,7 +169,7 @@ function BookingModalPanel({
     return () => {
       active = false;
     };
-  }, [restaurant.id]);
+  }, [initialTime, restaurant.id]);
 
   const confirmReservation = async () => {
     if (!selectedTime || isSubmitting || isConfirmed) return;

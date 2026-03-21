@@ -10,7 +10,6 @@ import { z } from "zod";
 import type { UserLocation } from "@/lib/geo";
 import { restaurants } from "@/lib/restaurants";
 import {
-  bookTable,
   checkAvailability,
   getRestaurants,
 } from "@/lib/mock-db";
@@ -49,16 +48,41 @@ function createSystemPrompt(userLocation: UserLocation | null | undefined) {
   return [
     "You are Baymax, an elite, minimalist AI gastronomy assistant for DineUp.",
     "Your tone is extremely concise, polite, sophisticated, and discerning (like a high-end concierge). DO NOT give long introductory or conversational filler. Get straight to the point.",
+    "Behave like an agent, not a Q&A bot: drive the booking workflow step-by-step.",
     "Use ONLY the restaurant inventory provided below.",
     "When recommending a place, use only 1 or 2 short sentences. Mention dietary tags or cuisine organically.",
     "You have two tools available:",
     "• Use `checkAvailability` when the user asks if a specific restaurant has tables free.",
     "• Use `initiateBooking` when the user explicitly says they want to book or reserve.",
+    "Mandatory booking fields before confirmation: restaurant, date, time, and party size.",
+    "If any mandatory field is missing, ask only for the missing fields and do not finalize.",
+    "When all fields are present, present pre-booking payment options before confirmation:",
+    "• Pay now (coming soon)",
+    "• Book now, pay at venue",
+    "Only after the user chooses one option should you proceed to final confirmation.",
     "If the user mentions a restaurant by name, convert it to the matching inventory id before calling a tool.",
     "Always pass booking/check times in 24-hour HH:mm format when possible (e.g. 20:00).",
     formatLocationContext(userLocation),
     "\nRestaurant inventory:\n" + buildInventoryContext(),
   ].join("\n\n");
+}
+
+function estimatePerGuest(price: string) {
+  if (price === "₹") return 450;
+  if (price === "₹₹") return 900;
+  if (price === "₹₹₹") return 1600;
+  return 2400;
+}
+
+function humanizeMissingFields(missingFields: string[]) {
+  const labels: Record<string, string> = {
+    restaurantId: "restaurant",
+    date: "date",
+    time: "time",
+    partySize: "party size",
+  };
+
+  return missingFields.map((field) => labels[field] ?? field);
 }
 
 function slugifyRestaurantInput(value: string) {
@@ -154,19 +178,22 @@ const appTools = {
 
   initiateBooking: tool({
     description:
-      "Render an interactive mini-booking card in the chat UI so the user can reserve a table immediately. Call this when the user says they want to book, reserve, or make a reservation.",
+      "Prepare an interactive booking draft card in the chat. Use this only after collecting details from the user. If details are missing, return exactly which fields are still required. Include pre-booking payment options before final confirmation.",
     inputSchema: z.object({
       restaurantId: z
         .string()
+        .optional()
         .describe("The `id` field of the restaurant the user wants to book."),
       time: z
         .string()
+        .optional()
         .describe("Requested reservation time in HH:mm where possible, e.g. '20:00'."),
       partySize: z
         .number()
         .int()
         .min(1)
         .max(12)
+        .optional()
         .describe("How many guests are included in the booking."),
       date: z
         .string()
@@ -174,7 +201,30 @@ const appTools = {
         .describe("Optional requested date in YYYY-MM-DD format."),
     }),
     execute: async ({ restaurantId, time, partySize, date }) => {
-      const restaurant = resolveRestaurantIdentifier(restaurantId);
+      const missingFields: string[] = [];
+      if (!restaurantId) missingFields.push("restaurantId");
+      if (!date) missingFields.push("date");
+      if (!time) missingFields.push("time");
+      if (!partySize) missingFields.push("partySize");
+
+      if (missingFields.length > 0) {
+        const readable = humanizeMissingFields(missingFields);
+        return {
+          ok: true,
+          booked: false,
+          readyForConfirmation: false,
+          requiresDetails: true,
+          missingFields,
+          missingFieldLabels: readable,
+          bookingMessage: `I can prepare your reservation. Please share: ${readable.join(", ")}.`,
+          paymentOptions: [
+            { id: "pay-now", label: "Pay now", status: "coming_soon" },
+            { id: "pay-later", label: "Book now, pay at venue", status: "available" },
+          ],
+        };
+      }
+
+      const restaurant = resolveRestaurantIdentifier(restaurantId as string);
       if (!restaurant) {
         return {
           ok: false,
@@ -185,17 +235,59 @@ const appTools = {
           slots: [] as string[],
           error: `Restaurant '${restaurantId}' not found.`,
           bookingMessage: `I couldn’t match '${restaurantId}' to a restaurant in DineUp. Please try again with the restaurant name.`,
+          requiresDetails: true,
+          readyForConfirmation: false,
         };
       }
 
-      const booking = bookTable(restaurant.id, time, partySize);
+      const availability = checkAvailability(restaurant.id, time as string);
+      if (!availability.ok) {
+        return {
+          ok: false,
+          booked: false,
+          readyForConfirmation: false,
+          requiresDetails: true,
+          restaurantId: restaurant.id,
+          restaurantName: restaurant.name,
+          requestedSlot: time,
+          partySize,
+          date,
+          slots: [] as string[],
+          bookingMessage: availability.message,
+          error: availability.message,
+        };
+      }
+
+      if (!availability.available) {
+        return {
+          ok: true,
+          booked: false,
+          readyForConfirmation: false,
+          requiresDetails: true,
+          restaurantId: restaurant.id,
+          restaurantName: restaurant.name,
+          requestedSlot: availability.requestedSlot,
+          partySize,
+          date,
+          slots: availability.remainingSlots,
+          bookingMessage: `${restaurant.name} is unavailable at ${availability.requestedSlot}. Please choose another slot.`,
+          missingFields: ["time"],
+          missingFieldLabels: ["time"],
+        };
+      }
+
+      const perGuest = estimatePerGuest(restaurant.price);
+      const subtotal = perGuest * (partySize as number);
+      const prebookingAmount = Math.round(subtotal * 0.2);
 
       return {
-        ok: booking.ok,
-        booked: booking.booked,
-        bookingMessage: booking.message,
-        requestedSlot: booking.requestedSlot,
-        partySize: booking.partySize,
+        ok: true,
+        booked: false,
+        readyForConfirmation: true,
+        requiresDetails: false,
+        bookingMessage: `Perfect. Your table is ready to reserve at ${restaurant.name}, ${availability.requestedSlot}, party of ${partySize}. Choose a payment option to continue.`,
+        requestedSlot: availability.requestedSlot,
+        partySize,
         date: date ?? null,
         restaurantId: restaurant.id,
         restaurantName: restaurant.name,
@@ -203,9 +295,25 @@ const appTools = {
         cuisine: restaurant.cuisine,
         rating: restaurant.rating,
         price: restaurant.price,
-        slots: booking.remainingSlots,
+        slots: availability.remainingSlots,
         address: restaurant.address,
         image: restaurant.image,
+        estimatedSubtotal: subtotal,
+        prebookingAmount,
+        paymentOptions: [
+          {
+            id: "pay-now",
+            label: "Pay now",
+            status: "coming_soon",
+            note: "Online prepayment gateway will be integrated soon.",
+          },
+          {
+            id: "pay-later",
+            label: "Book now, pay at venue",
+            status: "available",
+            note: "Reservation is confirmed now. Settle payment at the restaurant.",
+          },
+        ],
       };
     },
   }),
