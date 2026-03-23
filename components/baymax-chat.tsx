@@ -682,6 +682,58 @@ function buildSearchSuggestions(messages: UIMessage[], input: string, quickPromp
     .map((entry) => entry.suggestion);
 }
 
+function parseRetryHint(message: string) {
+  const minuteSecond = message.match(/([0-9]+)m([0-9]+(?:\.[0-9]+)?)s/i);
+  if (minuteSecond) {
+    const minutes = Number.parseInt(minuteSecond[1], 10);
+    const seconds = Math.ceil(Number.parseFloat(minuteSecond[2]));
+    if (!Number.isNaN(minutes) && !Number.isNaN(seconds)) {
+      return `${minutes}m ${seconds}s`;
+    }
+  }
+
+  const secondsOnly = message.match(/retry\s+after\s+([0-9]+)\s*seconds?/i);
+  if (secondsOnly) {
+    const seconds = Number.parseInt(secondsOnly[1], 10);
+    if (!Number.isNaN(seconds)) {
+      const minutes = Math.floor(seconds / 60);
+      const remaining = seconds % 60;
+      return minutes > 0 ? `${minutes}m ${remaining}s` : `${remaining}s`;
+    }
+  }
+
+  return null;
+}
+
+function toFriendlyChatError(rawMessage: string | null | undefined) {
+  const message = (rawMessage ?? "").trim();
+  if (!message) return "Baymax is temporarily unavailable. Please try again shortly.";
+
+  const lowered = message.toLowerCase();
+
+  if (
+    lowered.includes("rate limit")
+    || lowered.includes("tokens per day")
+    || lowered.includes("failed after 3 attempts")
+    || lowered.includes("429")
+  ) {
+    const retry = parseRetryHint(message);
+    return retry
+      ? `Baymax is temporarily busy due to AI provider limits. Please retry in about ${retry}.`
+      : "Baymax is temporarily busy due to AI provider limits. Please retry shortly.";
+  }
+
+  if (lowered.includes("missing ai provider configuration")) {
+    return "Baymax is not configured on the server yet. Please set AI provider environment variables.";
+  }
+
+  if (lowered.includes("failed to communicate")) {
+    return "Baymax could not reach the AI provider right now. Please retry in a moment.";
+  }
+
+  return sanitizeDisplayedText(message);
+}
+
 // --- Tool badge ---------------------------------------------------------------
 
 function ToolCallingBadge({ toolName }: { toolName: string }) {
@@ -1067,7 +1119,8 @@ export function BaymaxChat({ userLocation, locationStatus }: BaymaxChatProps) {
       await sendMessage({ text: trimmed }, { body: { userLocation } });
     } catch (err) {
       console.error("[Baymax] sendMessage failed:", err);
-      setLocalError("Baymax could not reach the reservation service right now.");
+      const transportMessage = err instanceof Error ? err.message : "Baymax could not reach the reservation service right now.";
+      setLocalError(toFriendlyChatError(transportMessage));
     }
   };
 
@@ -1221,7 +1274,7 @@ export function BaymaxChat({ userLocation, locationStatus }: BaymaxChatProps) {
                 {(error || localError) && (
                   <div className="flex justify-start">
                     <div className="max-w-[84%] rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
-                      {localError ?? error?.message ?? "Connection issue. Please try again."}
+                      {localError ?? toFriendlyChatError(error?.message) ?? "Connection issue. Please try again."}
                     </div>
                   </div>
                 )}

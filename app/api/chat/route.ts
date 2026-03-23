@@ -429,27 +429,7 @@ function parseEnvModelList(value: string | undefined) {
     .filter(Boolean);
 }
 
-function getProviderConfig(): ProviderConfig | null {
-  const selectedProvider = (process.env.AI_PROVIDER ?? "groq").trim().toLowerCase();
-
-  if (selectedProvider === "minimax") {
-    if (!process.env.MINIMAX_API_KEY) return null;
-
-    const minimax = createOpenAI({
-      baseURL: process.env.MINIMAX_BASE_URL ?? "https://api.minimax.chat/v1",
-      apiKey: process.env.MINIMAX_API_KEY,
-    });
-
-    const primary = process.env.MINIMAX_MODEL?.trim() || "MiniMax-M1";
-    const fallback = parseEnvModelList(process.env.MINIMAX_FALLBACK_MODELS);
-
-    return {
-      providerName: "minimax",
-      client: minimax,
-      modelCandidates: Array.from(new Set([primary, ...fallback])),
-    };
-  }
-
+function buildGroqProviderConfig(): ProviderConfig | null {
   if (!process.env.GROQ_API_KEY) return null;
 
   const groq = createOpenAI({
@@ -466,6 +446,50 @@ function getProviderConfig(): ProviderConfig | null {
     client: groq,
     modelCandidates: Array.from(new Set([primary, ...envFallbacks, ...defaultFallbacks])),
   };
+}
+
+function buildMiniMaxProviderConfig(): ProviderConfig | null {
+  if (!process.env.MINIMAX_API_KEY) return null;
+
+  const minimax = createOpenAI({
+    baseURL: process.env.MINIMAX_BASE_URL ?? "https://api.minimax.chat/v1",
+    apiKey: process.env.MINIMAX_API_KEY,
+  });
+
+  const primary = process.env.MINIMAX_MODEL?.trim() || "MiniMax-M1";
+  const fallback = parseEnvModelList(process.env.MINIMAX_FALLBACK_MODELS);
+
+  return {
+    providerName: "minimax",
+    client: minimax,
+    modelCandidates: Array.from(new Set([primary, ...fallback])),
+  };
+}
+
+function getProviderConfigs(): ProviderConfig[] {
+  const selectedProvider = (process.env.AI_PROVIDER ?? "groq").trim().toLowerCase();
+
+  const groqConfig = buildGroqProviderConfig();
+  const minimaxConfig = buildMiniMaxProviderConfig();
+
+  const ordered: ProviderConfig[] = [];
+
+  if (selectedProvider === "minimax") {
+    if (minimaxConfig) ordered.push(minimaxConfig);
+    if (groqConfig) ordered.push(groqConfig);
+    return ordered;
+  }
+
+  if (selectedProvider === "groq") {
+    if (groqConfig) ordered.push(groqConfig);
+    if (minimaxConfig) ordered.push(minimaxConfig);
+    return ordered;
+  }
+
+  // Unknown value: fall back to any configured providers.
+  if (groqConfig) ordered.push(groqConfig);
+  if (minimaxConfig) ordered.push(minimaxConfig);
+  return ordered;
 }
 
 // ─── Tools ────────────────────────────────────────────────────────────────────
@@ -698,8 +722,8 @@ const appTools = {
 // ─── Route ────────────────────────────────────────────────────────────────────
 
 export async function POST(request: Request) {
-  const providerConfig = getProviderConfig();
-  if (!providerConfig) {
+  const providerConfigs = getProviderConfigs();
+  if (providerConfigs.length === 0) {
     return Response.json(
       {
         error: "Missing AI provider configuration. Set AI_PROVIDER and matching API key in .env.local.",
@@ -729,30 +753,40 @@ export async function POST(request: Request) {
   // must not be forwarded to the model (it causes a validation error).
   const safeMessages = normalizeMessagesForModel(messages);
   const modelMessages = await convertToModelMessages(safeMessages);
-  const { providerName, client, modelCandidates } = providerConfig;
   let lastError: unknown;
+  let lastProviderName: ProviderConfig["providerName"] = "groq";
+  let sawRateLimit = false;
 
-  for (const modelName of modelCandidates) {
-    try {
-      const result = streamText({
-        model: client(modelName),
-        system: createSystemPrompt(userLocation),
-        messages: modelMessages,
-        tools: appTools,
-        temperature: 0.35,
-      });
+  for (const providerConfig of providerConfigs) {
+    const { providerName, client, modelCandidates } = providerConfig;
+    lastProviderName = providerName;
 
-      return result.toUIMessageStreamResponse();
-    } catch (error: unknown) {
-      lastError = error;
+    for (const modelName of modelCandidates) {
+      try {
+        const result = streamText({
+          model: client(modelName),
+          system: createSystemPrompt(userLocation),
+          messages: modelMessages,
+          tools: appTools,
+          temperature: 0.35,
+        });
 
-      // If this is not rate-limiting, stop failover and return immediately.
-      if (!isRateLimitError(error)) {
-        break;
+        return result.toUIMessageStreamResponse();
+      } catch (error: unknown) {
+        lastError = error;
+
+        // If this is not rate-limiting, stop failover and return immediately.
+        if (!isRateLimitError(error)) {
+          break;
+        }
+
+        sawRateLimit = true;
+        console.warn(`[Chat API] ${providerName} model '${modelName}' rate-limited. Trying fallback model...`);
       }
-
-      console.warn(`[Chat API] ${providerName} model '${modelName}' rate-limited. Trying fallback model...`);
     }
+
+    // Stop after non-rate-limit errors from this provider.
+    if (lastError && !isRateLimitError(lastError)) break;
   }
 
   try {
@@ -761,7 +795,7 @@ export async function POST(request: Request) {
     // Deep-log the full error so we can diagnose Groq / SDK issues in the
     // Vercel / Next.js server console without losing stack / cause details.
     console.error(
-      `[Chat API] ${providerName.toUpperCase()} FULL ERROR DETAILS:`,
+      `[Chat API] ${lastProviderName.toUpperCase()} FULL ERROR DETAILS:`,
       JSON.stringify(
         error,
         // JSON.stringify skips non-enumerable Error properties; handle them explicitly
@@ -781,13 +815,12 @@ export async function POST(request: Request) {
     );
     console.error("[Chat API] raw error object:", error);
 
-    if (isRateLimitError(error)) {
+    if (sawRateLimit || isRateLimitError(error)) {
       const message = getErrorMessage(error);
       const retryAfter = parseRetryAfterSecondsFromMessage(message);
       return Response.json(
         {
           error: "Baymax has temporarily reached provider token limits. Please retry shortly.",
-          detail: message,
           retryAfterSeconds: retryAfter,
         },
         { status: 429 },
@@ -795,7 +828,7 @@ export async function POST(request: Request) {
     }
 
     return Response.json(
-      { error: `Failed to communicate with ${providerName} model provider.` },
+      { error: `Failed to communicate with ${lastProviderName} model provider.` },
       { status: 500 }
     );
   }
