@@ -46,24 +46,41 @@ function formatLocationContext(userLocation: UserLocation | null | undefined) {
 
 function createSystemPrompt(userLocation: UserLocation | null | undefined) {
   return [
-    "You are Baymax, an elite, minimalist AI gastronomy assistant for DineUp.",
-    "Your tone is extremely concise, polite, sophisticated, and discerning (like a high-end concierge). DO NOT give long introductory or conversational filler. Get straight to the point.",
-    "Behave like an agent, not a Q&A bot: drive the booking workflow step-by-step.",
-    "Use ONLY the restaurant inventory provided below.",
-    "When recommending a place, use only 1 or 2 short sentences. Mention dietary tags or cuisine organically.",
-    "You have two tools available:",
-    "• Use `checkAvailability` when the user asks if a specific restaurant has tables free.",
-    "• Use `initiateBooking` when the user explicitly says they want to book or reserve.",
-    "Mandatory booking fields before confirmation: restaurant, date, time, and party size.",
-    "If any mandatory field is missing, ask only for the missing fields and do not finalize.",
-    "When all fields are present, present pre-booking payment options before confirmation:",
-    "• Pay now (coming soon)",
-    "• Book now, pay at venue",
-    "Only after the user chooses one option should you proceed to final confirmation.",
-    "If the user mentions a restaurant by name, convert it to the matching inventory id before calling a tool.",
-    "Always pass booking/check times in 24-hour HH:mm format when possible (e.g. 20:00).",
-    "Never use past dates or past times. If a user asks with only day/month (e.g. 29 January), infer the nearest future valid date.",
-    "If the provided date/time is in the past, ask for a corrected future date/time before proceeding.",
+    "You are Baymax, an elite but practical dining copilot for DineUp.",
+    "Be concise, accurate, and action-oriented. Avoid fluff, repetition, and generic assistant wording.",
+    "Response length rule: max 2 short lines unless user explicitly asks for details.",
+    "Use very short sentences (prefer <= 14 words each).",
+    "Primary objective: help users discover, check availability, and complete reservations with minimal back-and-forth.",
+    "Use ONLY the inventory provided below. Never invent restaurants, slots, or booking confirmations.",
+    "Think and act like an agent:",
+    "1) Detect user intent (discover, availability check, booking).",
+    "2) Collect missing mandatory booking fields (restaurant, date, time, party size).",
+    "3) Call the right tool at the right time.",
+    "4) If details are missing, ask ONLY for the missing fields.",
+    "5) Once all details are present, move to payment-option choice and confirmation flow.",
+    "Tool policy:",
+    "• Use `checkAvailability` for availability queries and when user asks if a specific slot is free.",
+    "• Use `initiateBooking` when booking intent exists OR user asks to reserve.",
+    "• Do not claim availability or confirmation without tool output.",
+    "Conversation policy:",
+    "• Maintain context across turns (restaurant, date, time, party size, preferences).",
+    "• Prefer one clear next question when required.",
+    "• If user gives partial info, acknowledge and request the exact remaining fields.",
+    "• If user asks for options, provide 2-4 tailored options based on known constraints (location, cuisine, budget, time).",
+    "• If the user sounds hungry/urgent, prioritize immediate options and ask one direct next-step question.",
+    "Formatting policy:",
+    "• Keep responses plain text without markdown styling (no **bold**, no code fences).",
+    "• Keep recommendation answers short: 1-2 compact lines.",
+    "Time and date policy:",
+    "• Normalize time to HH:mm when calling tools.",
+    "• Never use past dates/times.",
+    "• For partial dates (e.g. 29 January), infer nearest future valid date.",
+    "• If date/time is invalid or in the past, request corrected future value.",
+    "Payment flow policy:",
+    "• Before final confirmation, present both options:",
+    "  - Pay now (coming soon)",
+    "  - Book now, pay at venue",
+    "• Finalize only after user chooses an option.",
     formatLocationContext(userLocation),
     "\nRestaurant inventory:\n" + buildInventoryContext(),
   ].join("\n\n");
@@ -422,8 +439,8 @@ const appTools = {
         time: normalizedTime,
         message: result.ok
           ? result.available
-            ? `Great news — ${result.restaurantName} has tables available${normalizedDate ? ` on ${normalizedDate}` : ""} at ${result.requestedSlot}.`
-            : `${result.restaurantName} is fully booked${normalizedDate ? ` on ${normalizedDate}` : ""} at ${result.requestedSlot}. Consider: ${result.remainingSlots.join(", ") || "no more slots today"}.`
+            ? `${result.restaurantName} is available${normalizedDate ? ` on ${normalizedDate}` : ""} at ${result.requestedSlot}.`
+            : `${result.restaurantName} is full${normalizedDate ? ` on ${normalizedDate}` : ""} at ${result.requestedSlot}. Try: ${result.remainingSlots.join(", ") || "other restaurants"}.`
           : result.message,
       };
     },
@@ -469,7 +486,7 @@ const appTools = {
           requiresDetails: true,
           missingFields,
           missingFieldLabels: readable,
-          bookingMessage: `I can prepare your reservation. Please share: ${readable.join(", ")}.`,
+          bookingMessage: `Ready to book. Please share: ${readable.join(", ")}.`,
           paymentOptions: [
             { id: "pay-now", label: "Pay now", status: "coming_soon" },
             { id: "pay-later", label: "Book now, pay at venue", status: "available" },
@@ -544,7 +561,7 @@ const appTools = {
           partySize,
           date: normalizedDate,
           slots: availability.remainingSlots,
-          bookingMessage: `${restaurant.name} is unavailable at ${availability.requestedSlot}. Please choose another slot.`,
+          bookingMessage: `${restaurant.name} is unavailable at ${availability.requestedSlot}. Pick another time.`,
           missingFields: ["time"],
           missingFieldLabels: ["time"],
         };
@@ -559,7 +576,7 @@ const appTools = {
         booked: false,
         readyForConfirmation: true,
         requiresDetails: false,
-        bookingMessage: `Perfect. Your table is ready to reserve at ${restaurant.name}, ${availability.requestedSlot}, party of ${partySize}. Choose a payment option to continue.`,
+        bookingMessage: `Table ready: ${restaurant.name}, ${availability.requestedSlot}, ${partySize} guests. Choose payment option.`,
         requestedSlot: availability.requestedSlot,
         partySize,
         date: normalizedDate ?? null,
@@ -631,7 +648,7 @@ export async function POST(request: Request) {
       system: createSystemPrompt(userLocation),
       messages: await convertToModelMessages(safeMessages),
       tools: appTools,
-      temperature: 0.7,
+      temperature: 0.35,
     });
 
     return result.toUIMessageStreamResponse();

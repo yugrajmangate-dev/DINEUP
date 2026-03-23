@@ -104,6 +104,12 @@ type BookingDraft = {
   partySize?: number;
 };
 
+type BookingPromptContext = {
+  requiresDetails: boolean;
+  missingFieldLabels: string[];
+  restaurantName: string | null;
+};
+
 function isStaticToolUIPart(part: MessagePart): part is StaticToolUIPart {
   return part.type.startsWith("tool-") && part.type !== "tool-call" && part.type !== "tool-result";
 }
@@ -119,16 +125,570 @@ const STARTER_ID = "baymax-intro";
 const starterBubble: UIMessage = {
   id: STARTER_ID,
   role: "assistant",
-  parts: [{ type: "text", text: "Hello! I am Baymax � your personal dining concierge. Tell me what you are craving tonight and I will find the perfect table." }],
+  parts: [{ type: "text", text: "Hello! I am Baymax, your personal dining concierge. Tell me what you are craving tonight and I will find the perfect table." }],
 };
+
+const defaultQuickPrompts = [
+  "Food near me",
+  "Book Toit at 8 PM for 2",
+  "Is Cafe Good Luck free at 8 PM?",
+];
+
+const knownRestaurantNames = restaurants
+  .map((restaurant) => restaurant.name.trim())
+  .filter(Boolean)
+  .sort((a, b) => b.length - a.length);
+
+const cuisineKeywords = [
+  "north indian",
+  "south indian",
+  "indian",
+  "chinese",
+  "thai",
+  "japanese",
+  "korean",
+  "italian",
+  "continental",
+  "seafood",
+  "bbq",
+  "biryani",
+  "pizza",
+  "burger",
+  "vegan",
+  "vegetarian",
+  "non veg",
+];
+
+const budgetKeywords = ["cheap", "budget", "affordable", "mid range", "premium", "fine dining", "expensive"];
+
+function extractRecentUserTexts(messages: UIMessage[], maxItems = 4) {
+  const userTexts: string[] = [];
+
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message.role !== "user") continue;
+
+    const textPart = message.parts.find(
+      (part): part is { type: "text"; text: string } => part.type === "text" && typeof part.text === "string",
+    );
+
+    if (!textPart?.text.trim()) continue;
+    userTexts.push(textPart.text.trim());
+
+    if (userTexts.length >= maxItems) break;
+  }
+
+  return userTexts.reverse();
+}
+
+function extractRecentAssistantTexts(messages: UIMessage[], maxItems = 2) {
+  const assistantTexts: string[] = [];
+
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message.role !== "assistant") continue;
+
+    const textPart = message.parts.find(
+      (part): part is { type: "text"; text: string } => part.type === "text" && typeof part.text === "string",
+    );
+
+    if (!textPart?.text.trim()) continue;
+    assistantTexts.push(textPart.text.trim());
+
+    if (assistantTexts.length >= maxItems) break;
+  }
+
+  return assistantTexts.reverse();
+}
+
+function detectRestaurantName(text: string) {
+  const normalized = text.toLowerCase();
+  return knownRestaurantNames.find((name) => normalized.includes(name.toLowerCase())) ?? null;
+}
+
+function extractTimePhrase(text: string) {
+  const normalized = text.toLowerCase();
+  const explicit = normalized.match(/\b(?:[1-9]|1[0-2])(?::[0-5]\d)?\s?(?:am|pm)\b|\b(?:[01]?\d|2[0-3]):[0-5]\d\b/i);
+  if (explicit?.[0]) return explicit[0].toUpperCase();
+
+  const relative = normalized.match(/\b(today|tonight|tomorrow|this evening|evening|lunch|dinner|breakfast|late night)\b/i);
+  return relative?.[0] ?? null;
+}
+
+function extractIsoDate(text: string) {
+  const match = text.match(/\b(\d{4}-\d{2}-\d{2})\b/);
+  return match?.[1] ?? null;
+}
+
+function extractPartySize(text: string) {
+  const normalized = text.toLowerCase();
+  const sizedGroup = normalized.match(/\bfor\s+(\d{1,2})\s*(?:people|persons?|guests?|pax)?\b/i);
+  if (sizedGroup?.[1]) return Number.parseInt(sizedGroup[1], 10);
+
+  const bareGroup = normalized.match(/\b(\d{1,2})\s*(?:people|persons?|guests?|pax)\b/i);
+  if (bareGroup?.[1]) return Number.parseInt(bareGroup[1], 10);
+
+  return null;
+}
+
+function hasAnyKeyword(text: string, keywords: string[]) {
+  const normalized = text.toLowerCase();
+  return keywords.some((keyword) => normalized.includes(keyword));
+}
+
+function formatUpcomingDateLabel(date: Date, offset: number) {
+  if (offset === 0) return "Today";
+  if (offset === 1) return "Tomorrow";
+  return new Intl.DateTimeFormat("en-US", { weekday: "short" }).format(date);
+}
+
+function formatClockLabel(date: Date) {
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).format(date);
+}
+
+function buildUpcomingDateTimeLabels() {
+  const templates = [
+    { dayOffset: 0, hour: 20, minute: 0 },
+    { dayOffset: 1, hour: 20, minute: 0 },
+    { dayOffset: 2, hour: 20, minute: 30 },
+  ];
+
+  return templates.map(({ dayOffset, hour, minute }) => {
+    const date = new Date();
+    date.setHours(hour, minute, 0, 0);
+    date.setDate(date.getDate() + dayOffset);
+    return `${formatUpcomingDateLabel(date, dayOffset)} at ${formatClockLabel(date)}`;
+  });
+}
+
+function buildDateTimePromptOptions(restaurantName: string | null) {
+  const upcoming = buildUpcomingDateTimeLabels();
+
+  if (restaurantName) {
+    return [
+      `${restaurantName} - ${upcoming[0]}`,
+      `${restaurantName} - ${upcoming[1]}`,
+      `${restaurantName} - ${upcoming[2]}`,
+      "Custom date and time",
+      "Choose another restaurant",
+    ];
+  }
+
+  return [
+    `Book for ${upcoming[0]}`,
+    `Book for ${upcoming[1]}`,
+    `Book for ${upcoming[2]}`,
+    "Custom date and time",
+    "Choose another restaurant",
+  ];
+}
+
+function buildRestaurantChoicePrompts(limit = 3) {
+  const top = restaurants.slice(0, limit).map((restaurant) => `Try ${restaurant.name}`);
+  return [...top, "Choose another restaurant"];
+}
+
+function extractBookingPromptContextFromOutput(output: Record<string, unknown>): BookingPromptContext {
+  const missingFieldLabels = Array.isArray(output.missingFieldLabels)
+    ? output.missingFieldLabels.filter((value): value is string => typeof value === "string")
+    : [];
+
+  return {
+    requiresDetails: Boolean(output.requiresDetails),
+    missingFieldLabels,
+    restaurantName: typeof output.restaurantName === "string" ? output.restaurantName : null,
+  };
+}
+
+function extractLatestBookingPromptContext(messages: UIMessage[]): BookingPromptContext | null {
+  for (let messageIndex = messages.length - 1; messageIndex >= 0; messageIndex -= 1) {
+    const message = messages[messageIndex];
+    const parts = message.parts as MessagePart[];
+
+    for (let partIndex = parts.length - 1; partIndex >= 0; partIndex -= 1) {
+      const part = parts[partIndex];
+
+      if (part.type === "tool-invocation") {
+        const inv = part as ToolInvocationPart;
+        if (inv.toolName === "initiateBooking" && inv.state === "result" && inv.result) {
+          return extractBookingPromptContextFromOutput(inv.result);
+        }
+      }
+
+      if (isStaticToolUIPart(part)) {
+        const toolName = getStaticToolName(part);
+        if (toolName === "initiateBooking" && part.state === "output-available" && part.output) {
+          return extractBookingPromptContextFromOutput(part.output);
+        }
+      }
+
+      if (part.type === "dynamic-tool" && part.toolName === "initiateBooking" && part.state === "output-available" && part.output) {
+        return extractBookingPromptContextFromOutput(part.output);
+      }
+
+      if (part.type === "tool-result") {
+        const resultPart = part as ToolResultPart;
+        if (resultPart.toolName === "initiateBooking") {
+          const output = resultPart.result ?? resultPart.output;
+          if (output) {
+            return extractBookingPromptContextFromOutput(output);
+          }
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+function buildBookingMissingDetailPrompts(messages: UIMessage[]) {
+  const context = extractLatestBookingPromptContext(messages);
+  if (!context?.requiresDetails || context.missingFieldLabels.length === 0) {
+    return null;
+  }
+
+  const missing = context.missingFieldLabels.map((value) => value.toLowerCase());
+  const needsDateOrTime = missing.some((value) => value.includes("date") || value.includes("time") || value.includes("slot"));
+  const needsPartySize = missing.some((value) => value.includes("party") || value.includes("people") || value.includes("guest"));
+
+  if (needsDateOrTime) {
+    return buildDateTimePromptOptions(context.restaurantName);
+  }
+
+  if (needsPartySize) {
+    return [
+      "For 2 people",
+      "For 4 people",
+      "For 6 people",
+      "Custom party size",
+    ];
+  }
+
+  return [
+    "Share reservation details",
+    "Show date and time options",
+    "Custom date and time",
+  ];
+}
+
+function sanitizeDisplayedText(value: string) {
+  return value
+    .replace(/\uFFFD/g, "")
+    .replace(/\*\*(.*?)\*\*/g, "$1")
+    .replace(/__(.*?)__/g, "$1")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/^\s{0,3}#{1,6}\s+/gm, "")
+    .replace(/^\s*[-*]\s+/gm, "")
+    .trim();
+}
+
+function formatSlotChipLabel(slot: string) {
+  const match = slot.match(/^(\d{2}):(\d{2})$/);
+  if (!match) return slot;
+
+  const hour24 = Number.parseInt(match[1], 10);
+  const minute = match[2];
+  const meridiem = hour24 >= 12 ? "PM" : "AM";
+  const hour12 = hour24 % 12 || 12;
+  return `${hour12}:${minute} ${meridiem}`;
+}
+
+function getDateInfo(offset: number) {
+  const date = new Date();
+  date.setHours(0, 0, 0, 0);
+  date.setDate(date.getDate() + offset);
+
+  const key = date.toISOString().slice(0, 10);
+  const label = offset === 0
+    ? "Today"
+    : offset === 1
+      ? "Tomorrow"
+      : new Intl.DateTimeFormat("en-US", { weekday: "short" }).format(date);
+
+  return { key, label };
+}
+
+function buildDateTimeSuggestionChips(slots: string[]) {
+  const fallbackSlots = slots.length > 0 ? slots : ["20:00", "20:30", "21:00"];
+
+  return [0, 1, 2].map((offset, idx) => {
+    const dateInfo = getDateInfo(offset);
+    const time = fallbackSlots[Math.min(idx, fallbackSlots.length - 1)];
+
+    return {
+      date: dateInfo.key,
+      time,
+      label: `${dateInfo.label} - ${formatSlotChipLabel(time)}`,
+    };
+  });
+}
+
+function buildContextualQuickPrompts(messages: UIMessage[]) {
+  const recentUserTexts = extractRecentUserTexts(messages, 8);
+  const recentAssistantTexts = extractRecentAssistantTexts(messages, 2);
+  if (recentUserTexts.length === 0) return defaultQuickPrompts;
+
+  const latestText = recentUserTexts[recentUserTexts.length - 1].toLowerCase();
+  const combinedText = recentUserTexts.join(" ").toLowerCase();
+  const latestAssistantText = (recentAssistantTexts[recentAssistantTexts.length - 1] ?? "").toLowerCase();
+
+  const restaurantName = detectRestaurantName(combinedText);
+  const timePhrase = extractTimePhrase(combinedText);
+  const isoDate = extractIsoDate(combinedText);
+  const partySize = extractPartySize(combinedText);
+  const hasCuisinePreference = hasAnyKeyword(combinedText, cuisineKeywords);
+  const hasBudgetPreference = hasAnyKeyword(combinedText, budgetKeywords);
+
+  const asksAvailability = /\b(available|availability|free|slot|open table|open)\b/.test(latestText);
+  const wantsBooking = /\b(book|reserve|reservation|table|confirm)\b/.test(latestText);
+  const wantsDiscovery = /\b(best|nearby|near me|closest|suggest|recommend|find|good|options?)\b/.test(latestText) || (!asksAvailability && !wantsBooking);
+
+  const assistantAskedDateOrTime = /\b(what date|which date|share.*date|what time|which time|slot|date and time)\b/.test(latestAssistantText);
+  const assistantAskedPartySize = /\b(how many|party size|guests|people)\b/.test(latestAssistantText);
+  const assistantAskedRestaurant = /\b(which restaurant|restaurant name|place name)\b/.test(latestAssistantText);
+
+  if (assistantAskedDateOrTime && !timePhrase) {
+    return buildDateTimePromptOptions(restaurantName);
+  }
+
+  if (assistantAskedPartySize && !partySize) {
+    return [
+      "For 2 people",
+      "For 4 people",
+      "For 6 people",
+      "Custom party size",
+    ];
+  }
+
+  if (assistantAskedRestaurant && !restaurantName) {
+    return buildRestaurantChoicePrompts();
+  }
+
+  if (restaurantName && isoDate && timePhrase && !partySize) {
+    return [
+      `${restaurantName} ${isoDate} ${timePhrase} for 2`,
+      `${restaurantName} ${isoDate} ${timePhrase} for 4`,
+      "Custom party size",
+      "Choose another restaurant",
+    ];
+  }
+
+  if ((wantsBooking || asksAvailability) && restaurantName && timePhrase && !partySize) {
+    return [
+      `Book ${restaurantName} at ${timePhrase} for 2`,
+      `Book ${restaurantName} at ${timePhrase} for 4`,
+      `Try another time at ${restaurantName}`,
+      "Custom party size",
+      "Choose another restaurant",
+    ];
+  }
+
+  if ((wantsBooking || asksAvailability) && restaurantName && !timePhrase) {
+    return buildDateTimePromptOptions(restaurantName);
+  }
+
+  if ((wantsBooking || asksAvailability) && restaurantName && timePhrase && partySize) {
+    return [
+      `Check ${restaurantName} ${timePhrase} for ${partySize}`,
+      `Reserve ${restaurantName} ${timePhrase} for ${partySize}`,
+      `More slots at ${restaurantName}`,
+      "Custom date and time",
+      "Choose another restaurant",
+    ];
+  }
+
+  if (wantsDiscovery && !timePhrase) {
+    if (!hasCuisinePreference && !hasBudgetPreference) {
+      return [
+        "Best restaurants near me",
+        "Veg-friendly places near me",
+        "Budget-friendly places nearby",
+        "Top-rated places near me",
+      ];
+    }
+
+    if (hasCuisinePreference && !hasBudgetPreference) {
+      return [
+        "Show top-rated options near me",
+        "Find a table at 8 PM",
+        "Add budget filter",
+        "Book top suggestion for 2",
+      ];
+    }
+
+    return [
+      "Find the best match near me",
+      "Show options at 8 PM",
+      "Book top suggestion for 2",
+      "Custom date and time",
+    ];
+  }
+
+  if (wantsDiscovery && timePhrase && !partySize) {
+    return [
+      `Best options near me at ${timePhrase}`,
+      `Book top option at ${timePhrase} for 2`,
+      "For 4 people",
+      "Custom party size",
+    ];
+  }
+
+  if (!restaurantName && timePhrase && partySize) {
+    return [
+      `Top tables at ${timePhrase} for ${partySize}`,
+      "Suggest restaurants near me",
+      "Filter options by cuisine",
+      "Custom date and time",
+    ];
+  }
+
+  if (!partySize && (wantsBooking || asksAvailability || timePhrase !== null)) {
+    if (!timePhrase) {
+      return buildDateTimePromptOptions(restaurantName);
+    }
+
+    return [
+      "For 2 people",
+      "For 4 people",
+      "For 6 people",
+      "Custom party size",
+    ];
+  }
+
+  return defaultQuickPrompts;
+}
+
+function splitQueryTerms(query: string) {
+  return query
+    .toLowerCase()
+    .split(/\s+/)
+    .map((term) => term.trim())
+    .filter((term) => term.length > 0);
+}
+
+function normalizeSuggestion(value: string) {
+  return value.toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+function buildSearchSuggestions(messages: UIMessage[], input: string, quickPrompts: string[]) {
+  const query = input.trim();
+  if (!query) return [];
+
+  const queryLower = query.toLowerCase();
+  const terms = splitQueryTerms(query);
+  const recentUserTexts = extractRecentUserTexts(messages, 6);
+  const historyText = recentUserTexts.join(" ");
+  const combinedText = `${historyText} ${query}`.trim();
+  const restaurantName = detectRestaurantName(combinedText);
+  const timePhrase = extractTimePhrase(combinedText);
+  const partySize = extractPartySize(combinedText);
+
+  const asksAvailability = /\b(available|availability|free|slot|open table|open)\b/.test(queryLower);
+  const wantsBooking = /\b(book|reserve|reservation|table|confirm)\b/.test(queryLower);
+  const wantsDiscovery = /\b(best|near|near me|nearby|suggest|recommend|find|options?)\b/.test(queryLower);
+
+  const candidates: string[] = [];
+  candidates.push(...quickPrompts);
+
+  for (let index = recentUserTexts.length - 1; index >= 0; index -= 1) {
+    const text = recentUserTexts[index]?.trim();
+    if (text) candidates.push(text);
+  }
+
+  knownRestaurantNames
+    .filter((name) => name.toLowerCase().includes(queryLower))
+    .slice(0, 5)
+    .forEach((name) => {
+      candidates.push(`Book ${name} at 8 PM for 2`);
+      candidates.push(`Is ${name} available tonight?`);
+    });
+
+  cuisineKeywords
+    .filter((keyword) => keyword.includes(queryLower) || queryLower.includes(keyword))
+    .slice(0, 4)
+    .forEach((keyword) => {
+      candidates.push(`${keyword} near me`);
+      candidates.push(`Best ${keyword} restaurants near me`);
+    });
+
+  if (restaurantName) {
+    candidates.push(`Book ${restaurantName} at 8 PM for 2`);
+    candidates.push(`Is ${restaurantName} available tonight?`);
+    candidates.push(`Show evening slots for ${restaurantName}`);
+  }
+
+  if (wantsBooking) {
+    candidates.push(`Book table for 2${timePhrase ? ` at ${timePhrase}` : " tonight"}`);
+    candidates.push(`Reserve a table for 4${timePhrase ? ` at ${timePhrase}` : ""}`);
+    if (restaurantName) {
+      candidates.push(`Reserve ${restaurantName}${timePhrase ? ` at ${timePhrase}` : ""}${partySize ? ` for ${partySize}` : " for 2"}`);
+    }
+  }
+
+  if (asksAvailability) {
+    candidates.push(`Check availability${timePhrase ? ` at ${timePhrase}` : " tonight"}`);
+    if (restaurantName) {
+      candidates.push(`Check ${restaurantName} availability${timePhrase ? ` at ${timePhrase}` : ""}`);
+    }
+  }
+
+  if (wantsDiscovery) {
+    candidates.push("Best restaurants near me");
+    candidates.push("Top-rated places nearby");
+    candidates.push("Budget-friendly places near me");
+  }
+
+  if (timePhrase && !partySize) {
+    candidates.push(`${query} for 2`);
+    candidates.push(`${query} for 4`);
+  }
+
+  const scored = new Map<string, { suggestion: string; score: number }>();
+
+  const addScoredCandidate = (suggestion: string) => {
+    const trimmed = suggestion.trim();
+    if (!trimmed) return;
+
+    const normalized = normalizeSuggestion(trimmed);
+    const candidateLower = trimmed.toLowerCase();
+
+    let score = 0;
+    if (candidateLower.startsWith(queryLower)) score += 120;
+    if (candidateLower.includes(queryLower)) score += 70;
+
+    for (const term of terms) {
+      if (candidateLower.includes(term)) score += 18;
+    }
+
+    if (normalized === normalizeSuggestion(query)) score += 20;
+    if (score <= 0) return;
+
+    const existing = scored.get(normalized);
+    if (!existing || score > existing.score) {
+      scored.set(normalized, { suggestion: trimmed, score });
+    }
+  };
+
+  addScoredCandidate(query);
+  candidates.forEach(addScoredCandidate);
+
+  return Array.from(scored.values())
+    .sort((a, b) => b.score - a.score || a.suggestion.length - b.suggestion.length)
+    .slice(0, 6)
+    .map((entry) => entry.suggestion);
+}
 
 // --- Tool badge ---------------------------------------------------------------
 
 function ToolCallingBadge({ toolName }: { toolName: string }) {
   const label =
-    toolName === "checkAvailability" ? "Checking availability�"
-    : toolName === "initiateBooking" ? "Loading booking card�"
-    : `Running ${toolName}�`;
+    toolName === "checkAvailability" ? "Checking availability..."
+    : toolName === "initiateBooking" ? "Loading booking card..."
+    : `Running ${toolName}...`;
 
   return (
     <div className="flex justify-start">
@@ -148,7 +708,7 @@ function ToolCallingBadge({ toolName }: { toolName: string }) {
 
 function AvailabilityResultCard({ result }: { result: Record<string, unknown> }) {
   const available = result.available as boolean;
-  const message = result.message as string;
+  const message = sanitizeDisplayedText((result.message as string) ?? "");
   return (
     <div className="flex justify-start">
       <div className={cn(
@@ -175,7 +735,7 @@ function ToolErrorCard({
     <div className="flex justify-start">
       <div className="max-w-[88%] rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
         <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-red-500">{title}</p>
-        <p className="mt-1 leading-relaxed">{message}</p>
+        <p className="mt-1 leading-relaxed">{sanitizeDisplayedText(message)}</p>
       </div>
     </div>
   );
@@ -184,8 +744,16 @@ function ToolErrorCard({
 // --- Booking card -------------------------------------------------------------
 
 function BookingCard({ result, onBook }: { result: Record<string, unknown>; onBook: (draft: BookingDraft) => void }) {
-  const restaurantId = result.restaurantId as string;
-  const restaurant = restaurants.find((r) => r.id === restaurantId);
+  const resultRestaurantId = typeof result.restaurantId === "string" ? result.restaurantId : null;
+  const resultRestaurantName = typeof result.restaurantName === "string" ? result.restaurantName : null;
+
+  const restaurant = resultRestaurantId
+    ? restaurants.find((r) => r.id === resultRestaurantId)
+    : (resultRestaurantName
+      ? restaurants.find((r) => r.name.toLowerCase() === resultRestaurantName.toLowerCase())
+      : undefined);
+
+  const restaurantId = restaurant?.id ?? resultRestaurantId ?? "";
 
   const restaurantName = (result.restaurantName as string) ?? restaurant?.name;
   const neighborhood = (result.neighborhood as string) ?? restaurant?.neighborhood;
@@ -203,6 +771,8 @@ function BookingCard({ result, onBook }: { result: Record<string, unknown>; onBo
   const estimatedSubtotal = typeof result.estimatedSubtotal === "number" ? result.estimatedSubtotal : null;
   const prebookingAmount = typeof result.prebookingAmount === "number" ? result.prebookingAmount : null;
   const missingFieldLabels = ((result.missingFieldLabels as string[] | undefined) ?? []).filter(Boolean);
+  const needsDateOrTime = missingFieldLabels.some((field) => /date|time|slot/i.test(field));
+  const dateTimeSuggestionChips = useMemo(() => buildDateTimeSuggestionChips(slots), [slots]);
 
   // Look up coordinates for the "View on Map" button
   const setMapTarget = useMapStore((s) => s.setMapTarget);
@@ -254,7 +824,7 @@ function BookingCard({ result, onBook }: { result: Record<string, unknown>; onBo
                 ? "border-emerald-200 bg-emerald-50 text-emerald-700"
                 : "border-orange-200 bg-orange-50 text-orange-700",
             )}>
-              {bookingMessage}
+              {sanitizeDisplayedText(bookingMessage)}
             </div>
           </div>
         )}
@@ -264,6 +834,47 @@ function BookingCard({ result, onBook }: { result: Record<string, unknown>; onBo
             <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-slate-600">
               Missing details: {missingFieldLabels.join(", ")}.
             </div>
+            {needsDateOrTime && (
+              <>
+                <div className="mt-2 rounded-xl border border-orange-200 bg-orange-50 px-3 py-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-orange-600">Choose date and time</p>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {dateTimeSuggestionChips.map((chip) => (
+                      <button
+                        key={`${chip.date}-${chip.time}`}
+                        type="button"
+                        disabled={!restaurantId}
+                        onClick={() => onBook({
+                          restaurantId,
+                          date: chip.date,
+                          time: chip.time,
+                          partySize,
+                        })}
+                        className="rounded-xl border border-orange-200 bg-white px-3 py-1.5 text-[11px] font-medium text-slate-700 transition-all hover:border-orange-300 hover:bg-orange-100 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {chip.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mt-2 rounded-xl border border-gray-200 bg-white px-3 py-2">
+                  <button
+                    type="button"
+                    disabled={!restaurantId}
+                    onClick={() => onBook({
+                      restaurantId,
+                      date: undefined,
+                      time: undefined,
+                      partySize,
+                    })}
+                    className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs font-semibold text-slate-700 transition-all hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Custom date and time
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         )}
 
@@ -271,8 +882,8 @@ function BookingCard({ result, onBook }: { result: Record<string, unknown>; onBo
           <div className="px-4 pb-2">
             <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
               <p className="font-semibold text-slate-900">Pre-booking payment options</p>
-              <p className="mt-1">Estimated bill: ?{estimatedSubtotal.toLocaleString("en-IN")}</p>
-              <p>Pay-now amount (20%): ?{prebookingAmount.toLocaleString("en-IN")}</p>
+              <p className="mt-1">Estimated bill: Rs. {estimatedSubtotal.toLocaleString("en-IN")}</p>
+              <p>Pay-now amount (20%): Rs. {prebookingAmount.toLocaleString("en-IN")}</p>
             </div>
           </div>
         )}
@@ -326,7 +937,15 @@ function BookingCard({ result, onBook }: { result: Record<string, unknown>; onBo
           {restaurant && (
             <button
               type="button"
-              onClick={() => setMapTarget({ longitude: restaurant.coordinates[0], latitude: restaurant.coordinates[1] })}
+              onClick={() => {
+                setMapTarget({
+                  longitude: restaurant.coordinates[0],
+                  latitude: restaurant.coordinates[1],
+                  restaurantId: restaurant.id,
+                });
+                document.getElementById("explore-section")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                setIsOpen(false);
+              }}
               className="flex items-center gap-1.5 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-xs font-semibold text-slate-600 hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600 active:scale-95 transition-all"
             >
               <MapPin className="h-3.5 w-3.5" />View on Map
@@ -381,18 +1000,13 @@ type BaymaxChatProps = {
 // --- Main component -----------------------------------------------------------
 
 export function BaymaxChat({ userLocation, locationStatus }: BaymaxChatProps) {
-  // Open automatically on every fresh page visit / reload.
-  const [isOpen, setIsOpen] = useState(true);
+  // Start closed and auto-open after a short delay on fresh page load.
+  const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState("");
   const [bookingDraft, setBookingDraft] = useState<BookingDraft | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
-
-  const quickPrompts = useMemo(() => [
-    "Great dinner nearby",
-    "Reserve Toit Brewery at 8 PM for 2 people",
-    "Is Cafe Good Luck free at 8 PM?",
-  ], []);
+  const autoOpenTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const transport = useMemo(() => new DefaultChatTransport({ api: "/api/chat" }), []);
 
@@ -401,8 +1015,37 @@ export function BaymaxChat({ userLocation, locationStatus }: BaymaxChatProps) {
     experimental_throttle: 40,
   });
 
+  const bookingMissingDetailPrompts = useMemo(
+    () => buildBookingMissingDetailPrompts(messages),
+    [messages],
+  );
+
+  const quickPrompts = useMemo(
+    () => bookingMissingDetailPrompts ?? buildContextualQuickPrompts(messages),
+    [messages, bookingMissingDetailPrompts],
+  );
+
+  const searchSuggestions = useMemo(
+    () => buildSearchSuggestions(messages, input, quickPrompts),
+    [messages, input, quickPrompts],
+  );
+
   const allMessages = useMemo(() => [starterBubble, ...messages], [messages]);
   const isThinking = status === "submitted" || status === "streaming";
+
+  useEffect(() => {
+    autoOpenTimerRef.current = setTimeout(() => {
+      setIsOpen(true);
+      autoOpenTimerRef.current = null;
+    }, 7000);
+
+    return () => {
+      if (autoOpenTimerRef.current) {
+        clearTimeout(autoOpenTimerRef.current);
+        autoOpenTimerRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!scrollRef.current) return;
@@ -412,6 +1055,12 @@ export function BaymaxChat({ userLocation, locationStatus }: BaymaxChatProps) {
   const submitMessage = async (value: string) => {
     const trimmed = value.trim();
     if (!trimmed) return;
+
+    if (autoOpenTimerRef.current) {
+      clearTimeout(autoOpenTimerRef.current);
+      autoOpenTimerRef.current = null;
+    }
+
     setInput("");
     setIsOpen(true);
     setLocalError(null);
@@ -439,7 +1088,7 @@ export function BaymaxChat({ userLocation, locationStatus }: BaymaxChatProps) {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 16, scale: 0.94 }}
               transition={{ type: "spring", stiffness: 300, damping: 28 }}
-              className="pointer-events-auto flex w-87.5 max-h-[min(600px,calc(100vh-6rem))] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-[28px] border border-gray-200/80 bg-white shadow-[0_20px_60px_rgba(0,0,0,0.15),0_4px_16px_rgba(0,0,0,0.08)]"
+              className="pointer-events-auto flex w-87.5 max-h-[min(680px,calc(100vh-4rem))] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-[28px] border border-gray-200/80 bg-white shadow-[0_20px_60px_rgba(0,0,0,0.15),0_4px_16px_rgba(0,0,0,0.08)]"
             >
               {/* Header */}
               <div className="flex items-center justify-between bg-linear-to-br from-[#FF6B35] to-[#FF4F5A] px-5 py-4">
@@ -458,8 +1107,14 @@ export function BaymaxChat({ userLocation, locationStatus }: BaymaxChatProps) {
                   type="button"
                   title="Close chat"
                   aria-label="Close chat"
-                  onClick={() => setIsOpen(false)}
-                  className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/15 text-white hover:bg-white/25 active:scale-95 transition-all"
+                  onClick={() => {
+                    if (autoOpenTimerRef.current) {
+                      clearTimeout(autoOpenTimerRef.current);
+                      autoOpenTimerRef.current = null;
+                    }
+                    setIsOpen(false);
+                  }}
+                  className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/15 text-white transition-all hover:bg-white/25 active:scale-95"
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -474,6 +1129,10 @@ export function BaymaxChat({ userLocation, locationStatus }: BaymaxChatProps) {
                   <div key={message.id} className="space-y-3">
                     {(message.parts as MessagePart[]).map((part, idx) => {
                       if (part.type === "text" && part.text.trim()) {
+                        const bubbleText = message.role === "assistant"
+                          ? sanitizeDisplayedText(part.text)
+                          : part.text;
+
                         return (
                           <div key={idx} className={cn("flex", message.role === "user" ? "justify-end" : "justify-start")}>
                             <div className={cn(
@@ -482,7 +1141,7 @@ export function BaymaxChat({ userLocation, locationStatus }: BaymaxChatProps) {
                                 ? "bg-linear-to-br from-[#FF6B35] to-[#FF4F5A] text-white shadow-[0_4px_12px_rgba(255,107,53,0.25)]"
                                 : "bg-gray-100 text-slate-800",
                             )}>
-                              {part.text}
+                              {bubbleText}
                             </div>
                           </div>
                         );
@@ -593,18 +1252,6 @@ export function BaymaxChat({ userLocation, locationStatus }: BaymaxChatProps) {
 
               {/* Quick prompts + input */}
               <div className="border-t border-gray-100 px-4 py-3">
-                <div className="mb-2.5 flex flex-wrap gap-1.5">
-                  {quickPrompts.map((prompt) => (
-                    <button
-                      key={prompt}
-                      type="button"
-                      onClick={() => void submitMessage(prompt)}
-                      className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs font-medium text-slate-600 hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600 active:scale-95 transition-all"
-                    >
-                      {prompt}
-                    </button>
-                  ))}
-                </div>
                 <form onSubmit={(e) => { e.preventDefault(); void submitMessage(input); }} className="flex items-center gap-2">
                   <div className="flex flex-1 items-center gap-2 rounded-2xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 focus-within:border-[#FF6B35] focus-within:bg-white transition-all">
                     <Sparkles className="h-3.5 w-3.5 shrink-0 text-[#FF6B35]" />
@@ -625,37 +1272,77 @@ export function BaymaxChat({ userLocation, locationStatus }: BaymaxChatProps) {
                     <SendHorizonal className="h-4 w-4" />
                   </button>
                 </form>
+
+                {input.trim() ? (
+                  <div className="mt-2 overflow-hidden rounded-2xl border border-gray-200 bg-white">
+                    {searchSuggestions.map((suggestion) => (
+                      <button
+                        key={suggestion}
+                        type="button"
+                        onClick={() => void submitMessage(suggestion)}
+                        className="flex w-full items-center justify-between border-b border-gray-100 px-3.5 py-2.5 text-left text-sm text-slate-700 transition-colors last:border-b-0 hover:bg-orange-50 hover:text-orange-700"
+                      >
+                        <span className="line-clamp-1">{suggestion}</span>
+                        <span className="ml-3 text-[10px] uppercase tracking-[0.18em] text-slate-400">Suggest</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="mt-2.5 flex flex-wrap gap-1.5">
+                    {quickPrompts.map((prompt) => (
+                      <button
+                        key={prompt}
+                        type="button"
+                        onClick={() => void submitMessage(prompt)}
+                        className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs font-medium text-slate-600 hover:border-orange-200 hover:bg-orange-50 hover:text-orange-600 active:scale-95 transition-all"
+                      >
+                        {prompt}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </motion.div>
           )}
         </AnimatePresence>
 
         {/* -- FAB ----------------------------------------------------------- */}
-        <motion.button
-          type="button"
-          onClick={() => setIsOpen((v) => !v)}
-          whileTap={{ scale: 0.94 }}
-          whileHover={{ scale: 1.06 }}
-          className="pointer-events-auto relative flex h-16 w-16 items-center justify-center rounded-[22px] bg-linear-to-br from-[#FF6B35] to-[#FF4F5A] text-white shadow-[0_8px_32px_rgba(255,107,53,0.45)] transition-shadow hover:shadow-[0_12px_40px_rgba(255,107,53,0.55)]"
-        >
-          {/* Pulse ring */}
-          <motion.span
-            className="absolute inset-0 rounded-[22px] border-2 border-[#FF6B35]"
-            animate={{ scale: [1, 1.25, 1], opacity: [0.6, 0, 0.6] }}
-            transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
-          />
-          <AnimatePresence mode="wait">
-            {isOpen ? (
-              <motion.span key="x" initial={{ rotate: -90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: 90, opacity: 0 }} transition={{ duration: 0.2 }}>
-                <X className="h-6 w-6" />
-              </motion.span>
-            ) : (
-              <motion.span key="bot" initial={{ rotate: 90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: -90, opacity: 0 }} transition={{ duration: 0.2 }}>
+        <AnimatePresence>
+          {!isOpen && (
+            <motion.button
+              type="button"
+              onClick={() => {
+                if (autoOpenTimerRef.current) {
+                  clearTimeout(autoOpenTimerRef.current);
+                  autoOpenTimerRef.current = null;
+                }
+                setIsOpen((v) => !v);
+              }}
+              whileTap={{ scale: 0.94 }}
+              whileHover={{ scale: 1.06 }}
+              initial={{ opacity: 0, scale: 0.9, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 8 }}
+              transition={{ duration: 0.2 }}
+              className="pointer-events-auto relative flex h-16 w-16 items-center justify-center rounded-[22px] bg-linear-to-br from-[#FF6B35] to-[#FF4F5A] text-white shadow-[0_8px_32px_rgba(255,107,53,0.45)] transition-shadow hover:shadow-[0_12px_40px_rgba(255,107,53,0.55)]"
+            >
+              {/* Pulse ring */}
+              <motion.span
+                className="absolute inset-0 rounded-[22px] border-2 border-[#FF6B35]"
+                animate={{ scale: [1, 1.25, 1], opacity: [0.6, 0, 0.6] }}
+                transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
+              />
+              <motion.span
+                initial={{ rotate: 90, opacity: 0 }}
+                animate={{ rotate: 0, opacity: 1 }}
+                exit={{ rotate: -90, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+              >
                 <Bot className="h-6 w-6" />
               </motion.span>
-            )}
-          </AnimatePresence>
-        </motion.button>
+            </motion.button>
+          )}
+        </AnimatePresence>
       </div>
 
       <BookingModal

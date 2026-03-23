@@ -3,6 +3,7 @@ import { create } from "zustand";
 type MapTarget = {
   longitude: number;
   latitude: number;
+  restaurantId?: string;
 };
 
 type MapState = {

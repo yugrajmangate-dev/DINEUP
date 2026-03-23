@@ -238,7 +238,10 @@ export function RestaurantSplitView({
                   restaurant={entry.restaurant}
                   distanceLabel={entry.distanceLabel}
                   isActive={entry.restaurant.id === activeRestaurant?.restaurant.id}
-                  onSelect={() => selectRestaurant(entry.restaurant.id)}
+                  onSelect={() => {
+                    selectRestaurant(entry.restaurant.id);
+                    setBookingRestaurantId(entry.restaurant.id);
+                  }}
                   onBookNow={() => setBookingRestaurantId(entry.restaurant.id)}
                   isPriority={idx < 4}
                 />
@@ -481,6 +484,7 @@ function MapPanel({
   const ttRef = useRef<any>(null);
   const markersRef = useRef<Map<string, MarkerEntry>>(new Map());
   const mapLoadedRef = useRef(false);
+  const [isMapReady, setIsMapReady] = useState(false);
   const userMarkerRef = useRef<UserMarkerLike | null>(null);
 
   const token = process.env.NEXT_PUBLIC_TOMTOM_API_KEY ?? "XrGZxbn0mSMFA47GFG6KuiD8bV7VtbMi";
@@ -545,6 +549,7 @@ function MapPanel({
       map.on("load", () => {
         if (cancelled) return;
         mapLoadedRef.current = true;
+        setIsMapReady(true);
         resizeMap();
 
         // Some layouts settle a tick later after sticky/grid sizing resolves.
@@ -582,6 +587,7 @@ function MapPanel({
     return () => {
       cancelled = true;
       mapLoadedRef.current = false;
+      setIsMapReady(false);
       resizeObserver?.disconnect();
       window.removeEventListener("resize", resizeMap);
       const currentMap = mapInstanceRef.current;
@@ -645,7 +651,13 @@ function MapPanel({
   // ── Fly to Baymax "View on Map" target ──────────────────────────────
   useEffect(() => {
     const map = mapInstanceRef.current;
-    if (!map || !mapTarget) return;
+    if (!mapTarget) return;
+
+    if (mapTarget.restaurantId) {
+      setActiveRestaurantId(mapTarget.restaurantId, "manual");
+    }
+
+    if (!map || !mapLoadedRef.current || !isMapReady) return;
 
     map.flyTo({
       center: [mapTarget.longitude, mapTarget.latitude],
@@ -654,7 +666,7 @@ function MapPanel({
     });
 
     clearMapTarget();
-  }, [mapTarget, flySequence, clearMapTarget]);
+  }, [mapTarget, flySequence, clearMapTarget, isMapReady, setActiveRestaurantId]);
 
   if (!currentRestaurant) {
     return (
