@@ -734,6 +734,41 @@ function toFriendlyChatError(rawMessage: string | null | undefined) {
   return sanitizeDisplayedText(message);
 }
 
+function isProviderLimitError(rawMessage: string | null | undefined) {
+  const lowered = (rawMessage ?? "").toLowerCase();
+  return (
+    lowered.includes("rate limit")
+    || lowered.includes("tokens per day")
+    || lowered.includes("failed after 3 attempts")
+    || lowered.includes("temporarily busy due to ai provider limits")
+    || lowered.includes("429")
+  );
+}
+
+function buildOfflineBaymaxReply(userInput: string) {
+  const normalized = userInput.trim().toLowerCase();
+  const restaurant = detectRestaurantName(userInput);
+  const time = extractTimePhrase(userInput);
+  const partySize = extractPartySize(userInput);
+
+  const isBookingIntent = /\b(book|reserve|reservation|table|confirm)\b/.test(normalized);
+  const isAvailabilityIntent = /\b(available|availability|free|slot|open)\b/.test(normalized);
+
+  if (restaurant && (isBookingIntent || isAvailabilityIntent)) {
+    return `I can prepare ${restaurant}${time ? ` at ${time}` : ""}${partySize ? ` for ${partySize}` : ""}. Provider is busy now, please retry in a moment or tap a quick suggestion.`;
+  }
+
+  if (restaurant) {
+    return `Great choice: ${restaurant}. I can help with slots, booking, and party size as soon as provider traffic drops.`;
+  }
+
+  if (isBookingIntent) {
+    return "I am in backup mode. Share restaurant, date, time, and party size, then retry once provider load drops.";
+  }
+
+  return "I am in backup mode due to provider traffic. Try a quick prompt like 'Best restaurants near me' or 'Book Toit at 8 PM for 2'.";
+}
+
 // --- Tool badge ---------------------------------------------------------------
 
 function ToolCallingBadge({ toolName }: { toolName: string }) {
@@ -1056,14 +1091,26 @@ export function BaymaxChat({ userLocation, locationStatus }: BaymaxChatProps) {
   const [input, setInput] = useState("");
   const [bookingDraft, setBookingDraft] = useState<BookingDraft | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [offlineReply, setOfflineReply] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const autoOpenTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingUserInputRef = useRef("");
 
   const transport = useMemo(() => new DefaultChatTransport({ api: "/api/chat" }), []);
 
   const { error, messages, sendMessage, status } = useChat({
     transport,
     experimental_throttle: 40,
+    onError: (err) => {
+      const raw = err instanceof Error ? err.message : "";
+      const friendly = toFriendlyChatError(raw);
+      if (isProviderLimitError(raw)) {
+        setLocalError(null);
+        setOfflineReply(buildOfflineBaymaxReply(pendingUserInputRef.current));
+        return;
+      }
+      setLocalError(friendly);
+    },
   });
 
   const bookingMissingDetailPrompts = useMemo(
@@ -1107,6 +1154,8 @@ export function BaymaxChat({ userLocation, locationStatus }: BaymaxChatProps) {
     const trimmed = value.trim();
     if (!trimmed) return;
 
+    pendingUserInputRef.current = trimmed;
+
     if (autoOpenTimerRef.current) {
       clearTimeout(autoOpenTimerRef.current);
       autoOpenTimerRef.current = null;
@@ -1115,12 +1164,18 @@ export function BaymaxChat({ userLocation, locationStatus }: BaymaxChatProps) {
     setInput("");
     setIsOpen(true);
     setLocalError(null);
+    setOfflineReply(null);
     try {
       await sendMessage({ text: trimmed }, { body: { userLocation } });
     } catch (err) {
       console.error("[Baymax] sendMessage failed:", err);
       const transportMessage = err instanceof Error ? err.message : "Baymax could not reach the reservation service right now.";
-      setLocalError(toFriendlyChatError(transportMessage));
+      if (isProviderLimitError(transportMessage)) {
+        setLocalError(null);
+        setOfflineReply(buildOfflineBaymaxReply(trimmed));
+      } else {
+        setLocalError(toFriendlyChatError(transportMessage));
+      }
     }
   };
 
@@ -1272,9 +1327,19 @@ export function BaymaxChat({ userLocation, locationStatus }: BaymaxChatProps) {
                 ))}
 
                 {(error || localError) && (
+                  !offlineReply && (
                   <div className="flex justify-start">
                     <div className="max-w-[84%] rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
                       {localError ?? toFriendlyChatError(error?.message) ?? "Connection issue. Please try again."}
+                    </div>
+                  </div>
+                  )
+                )}
+
+                {offlineReply && (
+                  <div className="flex justify-start">
+                    <div className="max-w-[84%] rounded-2xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-700">
+                      {offlineReply}
                     </div>
                   </div>
                 )}
