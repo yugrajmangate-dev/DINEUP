@@ -15,6 +15,7 @@ import {
 } from "@/lib/mock-db";
 
 export const maxDuration = 45;
+const MAX_MODEL_MESSAGES = 14;
 
 // ─── System prompt ────────────────────────────────────────────────────────────
 
@@ -34,7 +35,8 @@ function buildInventoryContext() {
     };
   });
 
-  return JSON.stringify(merged, null, 2);
+  // Keep inventory compact to reduce prompt token usage on each request.
+  return JSON.stringify(merged);
 }
 
 function formatLocationContext(userLocation: UserLocation | null | undefined) {
@@ -363,7 +365,7 @@ function resolveRestaurantIdentifier(input: string) {
 function normalizeMessagesForModel(messages: UIMessage[]): UIMessage[] {
   const validRoles = new Set(["user", "assistant", "system"]);
 
-  return messages
+  const cleaned = messages
     .filter((message) =>
       message.id !== "intro"
       && message.id !== "baymax-intro"
@@ -381,6 +383,50 @@ function normalizeMessagesForModel(messages: UIMessage[]): UIMessage[] {
       };
     })
     .filter((message) => message.parts.length > 0);
+
+  // Keep only the latest window of messages to control token growth.
+  return cleaned.slice(-MAX_MODEL_MESSAGES);
+}
+
+function parseRetryAfterSecondsFromMessage(message: string) {
+  const match = message.match(/try again in\s+([0-9]+)m([0-9]+(?:\.[0-9]+)?)s/i);
+  if (!match) return undefined;
+
+  const minutes = Number.parseInt(match[1], 10);
+  const seconds = Number.parseFloat(match[2]);
+
+  if (Number.isNaN(minutes) || Number.isNaN(seconds)) return undefined;
+  return Math.ceil(minutes * 60 + seconds);
+}
+
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error && typeof error.message === "string") {
+    return error.message;
+  }
+  if (typeof error === "string") return error;
+  if (error && typeof error === "object" && "message" in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === "string") return message;
+  }
+  return "Unknown model error";
+}
+
+function isRateLimitError(error: unknown) {
+  const message = getErrorMessage(error).toLowerCase();
+  return message.includes("rate limit") || message.includes("429") || message.includes("tokens per day");
+}
+
+function getModelCandidates() {
+  const primary = process.env.GROQ_MODEL?.trim() || "llama-3.3-70b-versatile";
+  const envFallbacks = (process.env.GROQ_FALLBACK_MODELS ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  const defaultFallbacks = ["llama-3.1-8b-instant", "openai/gpt-oss-20b"];
+  const merged = [primary, ...envFallbacks, ...defaultFallbacks];
+
+  return Array.from(new Set(merged));
 }
 
 // ─── Tools ────────────────────────────────────────────────────────────────────
@@ -629,29 +675,55 @@ export async function POST(request: Request) {
     apiKey: process.env.GROQ_API_KEY,
   });
 
+  let requestBody: {
+    messages: UIMessage[];
+    userLocation?: UserLocation | null;
+  };
+
   try {
-    const {
-      messages,
-      userLocation,
-    }: {
-      messages: UIMessage[];
-      userLocation?: UserLocation | null;
-    } = await request.json();
+    requestBody = await request.json();
+  } catch {
+    return Response.json(
+      { error: "Invalid request payload for Baymax chat." },
+      { status: 400 },
+    );
+  }
 
-    // Strip UI-only / synthetic messages that are not valid model messages.
-    // The intro assistant message injected on the client has id="intro" and
-    // must not be forwarded to the model (it causes a validation error).
-    const safeMessages = normalizeMessagesForModel(messages);
+  const { messages, userLocation } = requestBody;
 
-    const result = streamText({
-      model: groq(process.env.GROQ_MODEL ?? "llama-3.3-70b-versatile"),
-      system: createSystemPrompt(userLocation),
-      messages: await convertToModelMessages(safeMessages),
-      tools: appTools,
-      temperature: 0.35,
-    });
+  // Strip UI-only / synthetic messages that are not valid model messages.
+  // The intro assistant message injected on the client has id="intro" and
+  // must not be forwarded to the model (it causes a validation error).
+  const safeMessages = normalizeMessagesForModel(messages);
+  const modelMessages = await convertToModelMessages(safeMessages);
+  const modelCandidates = getModelCandidates();
+  let lastError: unknown;
 
-    return result.toUIMessageStreamResponse();
+  for (const modelName of modelCandidates) {
+    try {
+      const result = streamText({
+        model: groq(modelName),
+        system: createSystemPrompt(userLocation),
+        messages: modelMessages,
+        tools: appTools,
+        temperature: 0.35,
+      });
+
+      return result.toUIMessageStreamResponse();
+    } catch (error: unknown) {
+      lastError = error;
+
+      // If this is not rate-limiting, stop failover and return immediately.
+      if (!isRateLimitError(error)) {
+        break;
+      }
+
+      console.warn(`[Chat API] Model '${modelName}' rate-limited. Trying fallback model...`);
+    }
+  }
+
+  try {
+    throw lastError;
   } catch (error: unknown) {
     // Deep-log the full error so we can diagnose Groq / SDK issues in the
     // Vercel / Next.js server console without losing stack / cause details.
@@ -675,6 +747,20 @@ export async function POST(request: Request) {
       )
     );
     console.error("[Chat API] raw error object:", error);
+
+    if (isRateLimitError(error)) {
+      const message = getErrorMessage(error);
+      const retryAfter = parseRetryAfterSecondsFromMessage(message);
+      return Response.json(
+        {
+          error: "Baymax has temporarily reached provider token limits. Please retry shortly.",
+          detail: message,
+          retryAfterSeconds: retryAfter,
+        },
+        { status: 429 },
+      );
+    }
+
     return Response.json(
       { error: "Failed to communicate with gastronomy model." },
       { status: 500 }
