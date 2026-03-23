@@ -46,8 +46,16 @@ DineUp is a premium, hyper-local restaurant discovery and reservation concept bu
 
 	Set the following in `.env.local`:
 	- `NEXT_PUBLIC_TOMTOM_API_KEY` — TomTom API key (optional; without it the map renders a fallback)
-	- `GROQ_API_KEY` — Groq API key for Baymax streaming + tool calling
-	- `GROQ_MODEL` — model name (defaults to `openai/gpt-oss-20b`)
+	- `AI_PROVIDER` — `groq` (default) or `minimax`
+	- If `AI_PROVIDER=groq`:
+	  - `GROQ_API_KEY` — Groq API key for Baymax streaming + tool calling
+	  - `GROQ_MODEL` — primary model (default `llama-3.3-70b-versatile`)
+	  - `GROQ_FALLBACK_MODELS` — optional comma-separated fallback models
+	- If `AI_PROVIDER=minimax`:
+	  - `MINIMAX_API_KEY` — MiniMax API key
+	  - `MINIMAX_MODEL` — MiniMax model id (default `MiniMax-M1`)
+	  - `MINIMAX_FALLBACK_MODELS` — optional comma-separated fallback models
+	  - `MINIMAX_BASE_URL` — optional OpenAI-compatible base URL (default `https://api.minimax.chat/v1`)
 	- `NEXT_PUBLIC_FIREBASE_*` — Your Firebase configuration keys
 
     *See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed setup and collaboration guidelines.*

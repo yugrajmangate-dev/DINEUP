@@ -43,7 +43,9 @@ Follow these steps to replicate the production environment on your machine:
 Please configure `.env.local` meticulously with your own keys:
 
 - **TomTom API Key:** Required to render the beautiful live maps. Sign up [here](https://developer.tomtom.com/) and grab a free API key, then set `NEXT_PUBLIC_TOMTOM_API_KEY`.
-- **Groq API Key:** Powers "Baymax" (our Agentic AI). Get your lightning-fast inference key [here](https://console.groq.com/). Set `GROQ_API_KEY` and `GROQ_MODEL` (we default it to `openai/gpt-oss-20b`).
+- **AI Provider Key:** Baymax supports OpenAI-compatible providers. Set `AI_PROVIDER` to `groq` or `minimax`.
+   - If using Groq, configure `GROQ_API_KEY`, `GROQ_MODEL`, and optional `GROQ_FALLBACK_MODELS`.
+   - If using MiniMax, configure `MINIMAX_API_KEY`, `MINIMAX_MODEL`, optional `MINIMAX_FALLBACK_MODELS`, and optional `MINIMAX_BASE_URL`.
 - **Firebase Configuration:** You must orchestrate your own Firebase backend for Authentication and Firestore. Go to the [Firebase Console](https://console.firebase.google.com/), construct a Web App, and populate:
   - `NEXT_PUBLIC_FIREBASE_API_KEY`
   - `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`

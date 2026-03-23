@@ -416,17 +416,56 @@ function isRateLimitError(error: unknown) {
   return message.includes("rate limit") || message.includes("429") || message.includes("tokens per day");
 }
 
-function getModelCandidates() {
-  const primary = process.env.GROQ_MODEL?.trim() || "llama-3.3-70b-versatile";
-  const envFallbacks = (process.env.GROQ_FALLBACK_MODELS ?? "")
+type ProviderConfig = {
+  providerName: "groq" | "minimax";
+  client: ReturnType<typeof createOpenAI>;
+  modelCandidates: string[];
+};
+
+function parseEnvModelList(value: string | undefined) {
+  return (value ?? "")
     .split(",")
-    .map((value) => value.trim())
+    .map((item) => item.trim())
     .filter(Boolean);
+}
 
+function getProviderConfig(): ProviderConfig | null {
+  const selectedProvider = (process.env.AI_PROVIDER ?? "groq").trim().toLowerCase();
+
+  if (selectedProvider === "minimax") {
+    if (!process.env.MINIMAX_API_KEY) return null;
+
+    const minimax = createOpenAI({
+      baseURL: process.env.MINIMAX_BASE_URL ?? "https://api.minimax.chat/v1",
+      apiKey: process.env.MINIMAX_API_KEY,
+    });
+
+    const primary = process.env.MINIMAX_MODEL?.trim() || "MiniMax-M1";
+    const fallback = parseEnvModelList(process.env.MINIMAX_FALLBACK_MODELS);
+
+    return {
+      providerName: "minimax",
+      client: minimax,
+      modelCandidates: Array.from(new Set([primary, ...fallback])),
+    };
+  }
+
+  if (!process.env.GROQ_API_KEY) return null;
+
+  const groq = createOpenAI({
+    baseURL: "https://api.groq.com/openai/v1",
+    apiKey: process.env.GROQ_API_KEY,
+  });
+
+  const primary = process.env.GROQ_MODEL?.trim() || "llama-3.3-70b-versatile";
+  const envFallbacks = parseEnvModelList(process.env.GROQ_FALLBACK_MODELS);
   const defaultFallbacks = ["llama-3.1-8b-instant", "openai/gpt-oss-20b"];
-  const merged = [primary, ...envFallbacks, ...defaultFallbacks];
 
-  return Array.from(new Set(merged));
+  return {
+    providerName: "groq",
+    client: groq,
+    modelCandidates: Array.from(new Set([primary, ...envFallbacks, ...defaultFallbacks])),
+  };
 }
 
 // ─── Tools ────────────────────────────────────────────────────────────────────
@@ -659,21 +698,15 @@ const appTools = {
 // ─── Route ────────────────────────────────────────────────────────────────────
 
 export async function POST(request: Request) {
-  if (!process.env.GROQ_API_KEY) {
+  const providerConfig = getProviderConfig();
+  if (!providerConfig) {
     return Response.json(
       {
-        error:
-          "Missing GROQ_API_KEY. Add it to .env.local to enable Baymax.",
+        error: "Missing AI provider configuration. Set AI_PROVIDER and matching API key in .env.local.",
       },
       { status: 500 },
     );
   }
-
-  // Groq-hosted model via the OpenAI-compatible provider
-  const groq = createOpenAI({
-    baseURL: "https://api.groq.com/openai/v1",
-    apiKey: process.env.GROQ_API_KEY,
-  });
 
   let requestBody: {
     messages: UIMessage[];
@@ -696,13 +729,13 @@ export async function POST(request: Request) {
   // must not be forwarded to the model (it causes a validation error).
   const safeMessages = normalizeMessagesForModel(messages);
   const modelMessages = await convertToModelMessages(safeMessages);
-  const modelCandidates = getModelCandidates();
+  const { providerName, client, modelCandidates } = providerConfig;
   let lastError: unknown;
 
   for (const modelName of modelCandidates) {
     try {
       const result = streamText({
-        model: groq(modelName),
+        model: client(modelName),
         system: createSystemPrompt(userLocation),
         messages: modelMessages,
         tools: appTools,
@@ -718,7 +751,7 @@ export async function POST(request: Request) {
         break;
       }
 
-      console.warn(`[Chat API] Model '${modelName}' rate-limited. Trying fallback model...`);
+      console.warn(`[Chat API] ${providerName} model '${modelName}' rate-limited. Trying fallback model...`);
     }
   }
 
@@ -728,7 +761,7 @@ export async function POST(request: Request) {
     // Deep-log the full error so we can diagnose Groq / SDK issues in the
     // Vercel / Next.js server console without losing stack / cause details.
     console.error(
-      "GROQ API FULL ERROR DETAILS:",
+      `[Chat API] ${providerName.toUpperCase()} FULL ERROR DETAILS:`,
       JSON.stringify(
         error,
         // JSON.stringify skips non-enumerable Error properties; handle them explicitly
@@ -762,7 +795,7 @@ export async function POST(request: Request) {
     }
 
     return Response.json(
-      { error: "Failed to communicate with gastronomy model." },
+      { error: `Failed to communicate with ${providerName} model provider.` },
       { status: 500 }
     );
   }
