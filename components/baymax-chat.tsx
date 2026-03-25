@@ -106,8 +106,16 @@ type BookingDraft = {
 
 type BookingPromptContext = {
   requiresDetails: boolean;
+  missingFields: string[];
   missingFieldLabels: string[];
   restaurantName: string | null;
+};
+
+type BookingDraftContext = {
+  restaurantId: string | null;
+  date?: string;
+  time?: string;
+  partySize?: number;
 };
 
 function isStaticToolUIPart(part: MessagePart): part is StaticToolUIPart {
@@ -220,6 +228,56 @@ function extractIsoDate(text: string) {
   return match?.[1] ?? null;
 }
 
+function extractRelativeDateSignal(text: string) {
+  const match = text.match(/\b(today|tomorrow|day after tomorrow|tonight|this weekend|next weekend|next week)\b/i);
+  return match?.[1] ?? null;
+}
+
+function parseTimePhraseToHHmm(value: string) {
+  const normalized = value.trim().toLowerCase();
+
+  const twentyFour = normalized.match(/^(\d{1,2}):(\d{2})$/);
+  if (twentyFour) {
+    const hour = Number.parseInt(twentyFour[1], 10);
+    const minute = Number.parseInt(twentyFour[2], 10);
+    if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+    return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+  }
+
+  const twelveHour = normalized.match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)$/);
+  if (!twelveHour) return null;
+
+  const rawHour = Number.parseInt(twelveHour[1], 10);
+  const minute = Number.parseInt(twelveHour[2] ?? "00", 10);
+  const meridiem = twelveHour[3];
+  if (rawHour < 1 || rawHour > 12 || minute < 0 || minute > 59) return null;
+
+  const hour = meridiem === "pm" ? (rawHour % 12) + 12 : rawHour % 12;
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
+function toDisplayTimeLabel(timePhrase: string | null) {
+  if (!timePhrase) return "8:00 PM";
+
+  const normalized = parseTimePhraseToHHmm(timePhrase);
+  if (normalized) return formatSlotChipLabel(normalized);
+
+  if (timePhrase.toLowerCase() === "tonight") return "8:00 PM";
+  return timePhrase;
+}
+
+function buildExplicitDayBookingChip(
+  dayLabel: "Today" | "Tomorrow" | "Day After Tomorrow",
+  restaurantName: string | null,
+  timeLabel: string,
+  partySize: number,
+) {
+  if (restaurantName) {
+    return `${dayLabel} - ${restaurantName} - ${timeLabel} - ${partySize} guests`;
+  }
+  return `${dayLabel} - ${timeLabel} - ${partySize} guests`;
+}
+
 function extractPartySize(text: string) {
   const normalized = text.toLowerCase();
   const sizedGroup = normalized.match(/\bfor\s+(\d{1,2})\s*(?:people|persons?|guests?|pax)?\b/i);
@@ -287,18 +345,57 @@ function buildDateTimePromptOptions(restaurantName: string | null) {
   ];
 }
 
+function buildDateOnlyPromptOptions(restaurantName: string | null, timePhrase: string | null, partySize: number | null) {
+  const guests = partySize ?? 2;
+  const timeLabel = toDisplayTimeLabel(timePhrase);
+
+  return [
+    buildExplicitDayBookingChip("Today", restaurantName, timeLabel, guests),
+    buildExplicitDayBookingChip("Tomorrow", restaurantName, timeLabel, guests),
+    buildExplicitDayBookingChip("Day After Tomorrow", restaurantName, timeLabel, guests),
+    "Custom date",
+    "Custom date and time",
+  ];
+}
+
+function buildTimeOnlyPromptOptions(restaurantName: string | null, dateSignal: string | null, partySize: number | null) {
+  const guests = partySize ?? 2;
+  const day = dateSignal ?? "today";
+
+  if (restaurantName) {
+    return [
+      `Book ${restaurantName} ${day} at 7:30 PM for ${guests}`,
+      `Book ${restaurantName} ${day} at 8:00 PM for ${guests}`,
+      `Book ${restaurantName} ${day} at 8:30 PM for ${guests}`,
+      "Custom date and time",
+    ];
+  }
+
+  return [
+    `Book ${day} at 7:30 PM for ${guests}`,
+    `Book ${day} at 8:00 PM for ${guests}`,
+    `Book ${day} at 8:30 PM for ${guests}`,
+    "Custom date and time",
+  ];
+}
+
 function buildRestaurantChoicePrompts(limit = 3) {
   const top = restaurants.slice(0, limit).map((restaurant) => `Try ${restaurant.name}`);
   return [...top, "Choose another restaurant"];
 }
 
 function extractBookingPromptContextFromOutput(output: Record<string, unknown>): BookingPromptContext {
+  const missingFields = Array.isArray(output.missingFields)
+    ? output.missingFields.filter((value): value is string => typeof value === "string")
+    : [];
+
   const missingFieldLabels = Array.isArray(output.missingFieldLabels)
     ? output.missingFieldLabels.filter((value): value is string => typeof value === "string")
     : [];
 
   return {
     requiresDetails: Boolean(output.requiresDetails),
+    missingFields,
     missingFieldLabels,
     restaurantName: typeof output.restaurantName === "string" ? output.restaurantName : null,
   };
@@ -345,18 +442,93 @@ function extractLatestBookingPromptContext(messages: UIMessage[]): BookingPrompt
   return null;
 }
 
+function extractBookingDraftContextFromOutput(output: Record<string, unknown>): BookingDraftContext {
+  return {
+    restaurantId: typeof output.restaurantId === "string" ? output.restaurantId : null,
+    date: typeof output.date === "string" ? output.date : undefined,
+    time: typeof output.requestedSlot === "string"
+      ? output.requestedSlot
+      : typeof output.time === "string"
+        ? output.time
+        : undefined,
+    partySize: typeof output.partySize === "number" ? output.partySize : undefined,
+  };
+}
+
+function extractLatestBookingDraftContext(messages: UIMessage[]): BookingDraftContext | null {
+  for (let messageIndex = messages.length - 1; messageIndex >= 0; messageIndex -= 1) {
+    const message = messages[messageIndex];
+    const parts = message.parts as MessagePart[];
+
+    for (let partIndex = parts.length - 1; partIndex >= 0; partIndex -= 1) {
+      const part = parts[partIndex];
+
+      if (part.type === "tool-invocation") {
+        const inv = part as ToolInvocationPart;
+        if (inv.toolName === "initiateBooking" && inv.state === "result" && inv.result) {
+          const context = extractBookingDraftContextFromOutput(inv.result);
+          if (context.restaurantId) return context;
+        }
+      }
+
+      if (isStaticToolUIPart(part)) {
+        const toolName = getStaticToolName(part);
+        if (toolName === "initiateBooking" && part.state === "output-available" && part.output) {
+          const context = extractBookingDraftContextFromOutput(part.output);
+          if (context.restaurantId) return context;
+        }
+      }
+
+      if (part.type === "dynamic-tool" && part.toolName === "initiateBooking" && part.state === "output-available" && part.output) {
+        const context = extractBookingDraftContextFromOutput(part.output);
+        if (context.restaurantId) return context;
+      }
+
+      if (part.type === "tool-result") {
+        const resultPart = part as ToolResultPart;
+        if (resultPart.toolName === "initiateBooking") {
+          const output = resultPart.result ?? resultPart.output;
+          if (output) {
+            const context = extractBookingDraftContextFromOutput(output);
+            if (context.restaurantId) return context;
+          }
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
 function buildBookingMissingDetailPrompts(messages: UIMessage[]) {
   const context = extractLatestBookingPromptContext(messages);
-  if (!context?.requiresDetails || context.missingFieldLabels.length === 0) {
+  if (!context?.requiresDetails || (context.missingFieldLabels.length === 0 && context.missingFields.length === 0)) {
     return null;
   }
 
+  const recentUserTexts = extractRecentUserTexts(messages, 6);
+  const combinedUserText = recentUserTexts.join(" ");
+  const timePhrase = extractTimePhrase(combinedUserText);
+  const dateSignal = extractIsoDate(combinedUserText) ?? extractRelativeDateSignal(combinedUserText);
+  const partySize = extractPartySize(combinedUserText);
+
+  const machineMissing = context.missingFields.map((value) => value.toLowerCase());
   const missing = context.missingFieldLabels.map((value) => value.toLowerCase());
-  const needsDateOrTime = missing.some((value) => value.includes("date") || value.includes("time") || value.includes("slot"));
+  const needsDate = machineMissing.includes("date") || missing.some((value) => value.includes("date"));
+  const needsTime = machineMissing.includes("time") || missing.some((value) => value.includes("time") || value.includes("slot"));
+  const needsDateOrTime = needsDate || needsTime;
   const needsPartySize = missing.some((value) => value.includes("party") || value.includes("people") || value.includes("guest"));
 
+  if (needsDate && !needsTime) {
+    return buildDateOnlyPromptOptions(context.restaurantName, timePhrase, partySize);
+  }
+
+  if (needsTime && !needsDate) {
+    return buildTimeOnlyPromptOptions(context.restaurantName, dateSignal, partySize);
+  }
+
   if (needsDateOrTime) {
-    return buildDateTimePromptOptions(context.restaurantName);
+    return buildDateOnlyPromptOptions(context.restaurantName, timePhrase, partySize);
   }
 
   if (needsPartySize) {
@@ -439,6 +611,8 @@ function buildContextualQuickPrompts(messages: UIMessage[]) {
   const restaurantName = detectRestaurantName(combinedText);
   const timePhrase = extractTimePhrase(combinedText);
   const isoDate = extractIsoDate(combinedText);
+  const relativeDateSignal = extractRelativeDateSignal(combinedText);
+  const hasDateSignal = Boolean(isoDate || relativeDateSignal);
   const partySize = extractPartySize(combinedText);
   const hasCuisinePreference = hasAnyKeyword(combinedText, cuisineKeywords);
   const hasBudgetPreference = hasAnyKeyword(combinedText, budgetKeywords);
@@ -448,8 +622,18 @@ function buildContextualQuickPrompts(messages: UIMessage[]) {
   const wantsDiscovery = /\b(best|nearby|near me|closest|suggest|recommend|find|good|options?)\b/.test(latestText) || (!asksAvailability && !wantsBooking);
 
   const assistantAskedDateOrTime = /\b(what date|which date|share.*date|what time|which time|slot|date and time)\b/.test(latestAssistantText);
+  const assistantAskedDate = /\b(what date|which date|share.*date|date\s*\(?(?:yyyy[-/ ]?mm[-/ ]?dd|dd[-/ ]?mm[-/ ]?yyyy)?\)?|pick a date|choose a date)\b/.test(latestAssistantText);
+  const assistantAskedTime = /\b(what time|which time|share.*time|pick a time|choose a time|time slot|slot)\b/.test(latestAssistantText);
   const assistantAskedPartySize = /\b(how many|party size|guests|people)\b/.test(latestAssistantText);
   const assistantAskedRestaurant = /\b(which restaurant|restaurant name|place name)\b/.test(latestAssistantText);
+
+  if (assistantAskedDate && !hasDateSignal) {
+    return buildDateOnlyPromptOptions(restaurantName, timePhrase, partySize);
+  }
+
+  if (assistantAskedTime && !timePhrase) {
+    return buildTimeOnlyPromptOptions(restaurantName, relativeDateSignal, partySize);
+  }
 
   if (assistantAskedDateOrTime && !timePhrase) {
     return buildDateTimePromptOptions(restaurantName);
@@ -1123,6 +1307,11 @@ export function BaymaxChat({ userLocation, locationStatus }: BaymaxChatProps) {
     [messages, bookingMissingDetailPrompts],
   );
 
+  const latestBookingDraftContext = useMemo(
+    () => extractLatestBookingDraftContext(messages),
+    [messages],
+  );
+
   const searchSuggestions = useMemo(
     () => buildSearchSuggestions(messages, input, quickPrompts),
     [messages, input, quickPrompts],
@@ -1153,6 +1342,22 @@ export function BaymaxChat({ userLocation, locationStatus }: BaymaxChatProps) {
   const submitMessage = async (value: string) => {
     const trimmed = value.trim();
     if (!trimmed) return;
+
+    const normalizedPrompt = trimmed.toLowerCase();
+    const isCustomDatePrompt = normalizedPrompt === "custom date" || normalizedPrompt === "custom date and time";
+    if (isCustomDatePrompt && latestBookingDraftContext?.restaurantId) {
+      setBookingDraft({
+        restaurantId: latestBookingDraftContext.restaurantId,
+        date: latestBookingDraftContext.date,
+        time: latestBookingDraftContext.time,
+        partySize: latestBookingDraftContext.partySize,
+      });
+      setInput("");
+      setIsOpen(true);
+      setLocalError(null);
+      setOfflineReply(null);
+      return;
+    }
 
     pendingUserInputRef.current = trimmed;
 

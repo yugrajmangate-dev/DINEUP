@@ -580,6 +580,13 @@ const appTools = {
         .describe("Optional requested date in YYYY-MM-DD format."),
     }),
     execute: async ({ restaurantId, time, partySize, date }) => {
+      const requestedTime = typeof time === "string"
+        ? (parseTimeToMinutes(time)?.normalized ?? time)
+        : undefined;
+      const resolvedRestaurant = restaurantId
+        ? resolveRestaurantIdentifier(restaurantId)
+        : null;
+
       const missingFields: string[] = [];
       if (!restaurantId) missingFields.push("restaurantId");
       if (!date) missingFields.push("date");
@@ -593,6 +600,16 @@ const appTools = {
           booked: false,
           readyForConfirmation: false,
           requiresDetails: true,
+          restaurantId: resolvedRestaurant?.id ?? restaurantId,
+          restaurantName: resolvedRestaurant?.name,
+          neighborhood: resolvedRestaurant?.neighborhood,
+          cuisine: resolvedRestaurant?.cuisine,
+          rating: resolvedRestaurant?.rating,
+          price: resolvedRestaurant?.price,
+          requestedSlot: requestedTime,
+          partySize,
+          date: date ?? null,
+          slots: [] as string[],
           missingFields,
           missingFieldLabels: readable,
           bookingMessage: `Ready to book. Please share: ${readable.join(", ")}.`,

@@ -486,6 +486,7 @@ function MapPanel({
   const mapLoadedRef = useRef(false);
   const [isMapReady, setIsMapReady] = useState(false);
   const userMarkerRef = useRef<UserMarkerLike | null>(null);
+  const hasCenteredToUserRef = useRef(false);
 
   const token = process.env.NEXT_PUBLIC_TOMTOM_API_KEY ?? "XrGZxbn0mSMFA47GFG6KuiD8bV7VtbMi";
 
@@ -631,6 +632,40 @@ function MapPanel({
     });
   }, [hasLiveLocation, userLocation]);
 
+  useEffect(() => {
+    if (hasLiveLocation) return;
+    hasCenteredToUserRef.current = false;
+  }, [hasLiveLocation]);
+
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map || !mapLoadedRef.current || !isMapReady || !hasLiveLocation || !userLocation) return;
+    if (hasCenteredToUserRef.current) return;
+
+    hasCenteredToUserRef.current = true;
+    map.flyTo({
+      center: [userLocation.longitude, userLocation.latitude],
+      zoom: 14.8,
+      duration: 1200,
+    });
+  }, [hasLiveLocation, isMapReady, userLocation]);
+
+  const centerOnUserLocation = () => {
+    const map = mapInstanceRef.current;
+    if (!map || !mapLoadedRef.current) return;
+
+    if (!hasLiveLocation || !userLocation) {
+      onRequestLocation();
+      return;
+    }
+
+    map.flyTo({
+      center: [userLocation.longitude, userLocation.latitude],
+      zoom: 15.2,
+      duration: 900,
+    });
+  };
+
   // ── Pan to hovered / selected restaurant ────────────────────────────
   useEffect(() => {
     const map = mapInstanceRef.current;
@@ -693,6 +728,15 @@ function MapPanel({
               ? "Live map · Waiting for your location permission"
               : "Live map · Allow location access to see your true distances"}
         </div>
+
+        <button
+          type="button"
+          onClick={centerOnUserLocation}
+          className="absolute left-4 top-16 z-10 inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white/95 px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-sm backdrop-blur-md transition-all hover:border-orange-200 hover:text-orange-600 active:scale-95"
+        >
+          <LocateFixed className="h-3.5 w-3.5 text-[#FF6B35]" />
+          {hasLiveLocation ? "Center on my location" : "Enable my location"}
+        </button>
 
         {!hasLiveLocation && (
           <div className="absolute right-4 top-4 z-10 max-w-xs rounded-2xl border border-orange-200 bg-white/95 p-4 text-sm text-slate-600 shadow-lg backdrop-blur-md">
