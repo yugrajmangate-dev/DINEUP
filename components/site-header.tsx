@@ -25,6 +25,7 @@ const getServerSnapshot = () => false;
 
 const navLinks = [
   { label: "Explore", href: "/#explore-section" },
+  { label: "Virtual Tour", href: "/virtual-tour" },
   { label: "How it works", href: "/how-it-works" },
   { label: "About", href: "/about" },
 ];

@@ -1,3 +1,8 @@
+import fs from "fs";
+import path from "path";
+
+import { restaurants as seedRestaurants } from "@/lib/restaurants";
+
 export type PriceTier = "₹" | "₹₹" | "₹₹₹" | "₹₹₹₹";
 
 export type MockRestaurant = {
@@ -11,196 +16,153 @@ export type MockRestaurant = {
   available_slots: string[];
 };
 
-const initialRestaurants: MockRestaurant[] = [
-  {
-    id: "toit-brewery",
-    name: "Toit Brewery",
-    cuisine: "Craft Brewery & Gastropub",
-    rating: 4.8,
-    price_tier: "₹₹₹",
-    location: "Kalyani Nagar, Pune",
-    operating_hours: "12:00 PM - 01:00 AM",
-    available_slots: ["19:00", "19:30", "20:00", "21:00", "21:30"],
-  },
-  {
-    id: "mainland-china",
-    name: "Mainland China",
-    cuisine: "Contemporary Chinese",
-    rating: 4.7,
-    price_tier: "₹₹₹₹",
-    location: "Boat Club Road, Camp, Pune",
-    operating_hours: "12:00 PM - 03:00 PM, 07:00 PM - 11:30 PM",
-    available_slots: ["19:00", "19:30", "20:00", "20:30", "21:30"],
-  },
-  {
-    id: "11-east-street",
-    name: "11 East Street",
-    cuisine: "European All-day Bistro",
-    rating: 4.6,
-    price_tier: "₹₹₹",
-    location: "East Street, Camp, Pune",
-    operating_hours: "08:00 AM - 11:30 PM",
-    available_slots: ["12:30", "13:00", "19:30", "20:00", "21:00"],
-  },
-  {
-    id: "cafe-good-luck",
-    name: "Cafe Good Luck",
-    cuisine: "Iconic Irani Cafe",
-    rating: 4.9,
-    price_tier: "₹",
-    location: "Deccan Gymkhana, Pune",
-    operating_hours: "07:00 AM - 11:30 PM",
-    available_slots: ["09:00", "13:00", "19:00", "19:30", "20:00"],
-  },
-  {
-    id: "kalinga-seafood",
-    name: "Kalinga",
-    cuisine: "Coastal Seafood",
-    rating: 4.5,
-    price_tier: "₹₹",
-    location: "Erandwane, Pune",
-    operating_hours: "11:30 AM - 03:00 PM, 07:00 PM - 10:30 PM",
-    available_slots: ["13:00", "19:00", "19:30", "20:00", "20:30"],
-  },
-  {
-    id: "barometer",
-    name: "Barometer",
-    cuisine: "Modern Indian & Continental",
-    rating: 4.6,
-    price_tier: "₹₹₹",
-    location: "Kothrud, Pune",
-    operating_hours: "07:30 AM - 11:30 PM",
-    available_slots: ["12:30", "19:30", "20:00", "20:30", "21:30"],
-  },
-];
+const DB_PATH = path.join(process.cwd(), "data", "platform-db.json");
 
-function cloneRestaurant(restaurant: MockRestaurant): MockRestaurant {
+function ensureFile() {
+  if (fs.existsSync(DB_PATH)) return;
+  fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
+  fs.writeFileSync(
+    DB_PATH,
+    JSON.stringify({
+      restaurants: seedRestaurants.map((restaurant) => ({
+        ...restaurant,
+        tables: [
+          { id: `${restaurant.id}-t1`, name: "Window 1", capacity: 2, zone: "Window" },
+          { id: `${restaurant.id}-t2`, name: "Patio 1", capacity: 4, zone: "Patio" },
+        ],
+        tour: {
+          headline: `Preview ${restaurant.name} before you book.`,
+          nodes: [
+            {
+              id: `${restaurant.id}-arrival`,
+              name: "Arrival",
+              panorama: restaurant.image,
+              thumbnail: restaurant.image,
+            },
+          ],
+        },
+      })),
+      bookings: [],
+    }, null, 2),
+    "utf8",
+  );
+}
+
+function readDb() {
+  ensureFile();
+  return JSON.parse(fs.readFileSync(DB_PATH, "utf8")) as {
+    restaurants: Array<{
+      id: string;
+      name: string;
+      cuisine: string;
+      rating: number;
+      price: PriceTier;
+      address: string;
+      operating_hours: Array<{ day: string; hours: string }>;
+      reservationSlots: string[];
+      tables?: Array<{ id: string; name: string; capacity: number }>;
+    }>;
+    bookings: Array<{
+      restaurantId: string;
+      date: string;
+      time: string;
+      tableId: string;
+    }>;
+  };
+}
+
+function todayIso() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function toMockRestaurant(entry: ReturnType<typeof readDb>["restaurants"][number]): MockRestaurant {
+  const bookingsToday = readDb().bookings.filter((booking) => booking.restaurantId === entry.id && booking.date === todayIso());
+  const available_slots = entry.reservationSlots.filter((slot) =>
+    (entry.tables ?? []).some((table) => !bookingsToday.some((booking) => booking.time === slot && booking.tableId === table.id)),
+  );
+
   return {
-    ...restaurant,
-    available_slots: [...restaurant.available_slots],
+    id: entry.id,
+    name: entry.name,
+    cuisine: entry.cuisine,
+    rating: entry.rating,
+    price_tier: entry.price,
+    location: entry.address,
+    operating_hours: entry.operating_hours.map((item) => `${item.day}: ${item.hours}`).join(", "),
+    available_slots,
   };
 }
-
-function normalizeTimeSlot(input: string): string {
-  const value = input.trim().toLowerCase();
-
-  const twentyFourMatch = value.match(/^(\d{1,2}):(\d{2})$/);
-  if (twentyFourMatch) {
-    const rawHour = Number.parseInt(twentyFourMatch[1], 10);
-    const minute = Number.parseInt(twentyFourMatch[2], 10);
-    const hour = Math.max(0, Math.min(23, rawHour));
-    const safeMinute = Math.max(0, Math.min(59, minute));
-    return `${hour.toString().padStart(2, "0")}:${safeMinute.toString().padStart(2, "0")}`;
-  }
-
-  const twelveHourMatch = value.match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)$/);
-  if (twelveHourMatch) {
-    const rawHour = Number.parseInt(twelveHourMatch[1], 10);
-    const minute = Number.parseInt(twelveHourMatch[2] ?? "00", 10);
-    const meridiem = twelveHourMatch[3];
-    const normalizedHour = rawHour % 12;
-    const hour = meridiem === "pm" ? normalizedHour + 12 : normalizedHour;
-    const safeMinute = Math.max(0, Math.min(59, minute));
-    return `${hour.toString().padStart(2, "0")}:${safeMinute.toString().padStart(2, "0")}`;
-  }
-
-  return input;
-}
-
-type MockDbState = {
-  restaurants: MockRestaurant[];
-};
-
-declare global {
-  var __dineupMockDbState: MockDbState | undefined;
-}
-
-const state: MockDbState =
-  globalThis.__dineupMockDbState ?? {
-    restaurants: initialRestaurants.map(cloneRestaurant),
-  };
-
-globalThis.__dineupMockDbState = state;
 
 export function getRestaurants(): MockRestaurant[] {
-  return state.restaurants.map(cloneRestaurant);
+  const db = readDb();
+  return db.restaurants.map(toMockRestaurant);
 }
 
 export function getRestaurantById(restaurantId: string): MockRestaurant | null {
-  const restaurant = state.restaurants.find((item) => item.id === restaurantId);
-  return restaurant ? cloneRestaurant(restaurant) : null;
+  return getRestaurants().find((restaurant) => restaurant.id === restaurantId) ?? null;
 }
 
 export function checkAvailability(restaurantId: string, time: string) {
-  const normalizedSlot = normalizeTimeSlot(time);
-  const restaurant = state.restaurants.find((item) => item.id === restaurantId);
-
+  const restaurant = getRestaurantById(restaurantId);
   if (!restaurant) {
     return {
       ok: false,
       available: false,
       restaurantId,
-      requestedSlot: normalizedSlot,
+      requestedSlot: time,
       remainingSlots: [] as string[],
       message: `Restaurant '${restaurantId}' not found.`,
     };
   }
 
-  const available = restaurant.available_slots.includes(normalizedSlot);
+  const available = restaurant.available_slots.includes(time);
   return {
     ok: true,
     available,
     restaurantId: restaurant.id,
     restaurantName: restaurant.name,
-    requestedSlot: normalizedSlot,
-    remainingSlots: [...restaurant.available_slots],
+    requestedSlot: time,
+    remainingSlots: restaurant.available_slots,
     message: available
-      ? `${restaurant.name} has availability at ${normalizedSlot}.`
-      : `${restaurant.name} is sold out at ${normalizedSlot}.`,
+      ? `${restaurant.name} has availability at ${time}.`
+      : `${restaurant.name} is sold out at ${time}.`,
   };
 }
 
 export function bookTable(restaurantId: string, time: string, partySize: number) {
-  const normalizedSlot = normalizeTimeSlot(time);
-  const normalizedPartySize = Math.max(1, Math.floor(partySize));
-  const restaurant = state.restaurants.find((item) => item.id === restaurantId);
-
+  const restaurant = getRestaurantById(restaurantId);
   if (!restaurant) {
     return {
       ok: false,
       booked: false,
       restaurantId,
-      requestedSlot: normalizedSlot,
-      partySize: normalizedPartySize,
+      requestedSlot: time,
+      partySize,
       remainingSlots: [] as string[],
       message: `Restaurant '${restaurantId}' not found.`,
     };
   }
 
-  const slotIndex = restaurant.available_slots.indexOf(normalizedSlot);
-  if (slotIndex < 0) {
+  if (!restaurant.available_slots.includes(time)) {
     return {
       ok: true,
       booked: false,
-      restaurantId: restaurant.id,
-      restaurantName: restaurant.name,
-      requestedSlot: normalizedSlot,
-      partySize: normalizedPartySize,
-      remainingSlots: [...restaurant.available_slots],
-      message: `${restaurant.name} no longer has ${normalizedSlot} available.`,
+      restaurantId,
+      requestedSlot: time,
+      partySize,
+      remainingSlots: restaurant.available_slots,
+      message: `${restaurant.name} no longer has ${time} available.`,
     };
   }
-
-  restaurant.available_slots.splice(slotIndex, 1);
 
   return {
     ok: true,
     booked: true,
-    restaurantId: restaurant.id,
+    restaurantId,
     restaurantName: restaurant.name,
-    requestedSlot: normalizedSlot,
-    partySize: normalizedPartySize,
-    remainingSlots: [...restaurant.available_slots],
-    message: `Booked ${restaurant.name} at ${normalizedSlot} for ${normalizedPartySize} ${normalizedPartySize === 1 ? "guest" : "guests"}.`,
+    requestedSlot: time,
+    partySize,
+    remainingSlots: restaurant.available_slots.filter((slot) => slot !== time),
+    message: `Draft booking prepared for ${restaurant.name} at ${time}.`,
   };
 }

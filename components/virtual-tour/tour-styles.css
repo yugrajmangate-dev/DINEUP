@@ -1,0 +1,140 @@
+/* ═══════════════════════════════════════════════════
+   Tour Styles (Encapsulated)
+   ═══════════════════════════════════════════════════ */
+
+:root {
+  --gold: #d4a853;
+  --gold-lt: #eac97a;
+  --gold-dk: #a07828;
+  --gold-glow: rgba(212, 168, 83, .25);
+  --gold-tint: rgba(212, 168, 83, .09);
+
+  --bg: #07070d;
+  --bg2: #0f0f18;
+  --glass: rgba(10, 10, 18, .85);
+  --glass2: rgba(20, 20, 30, .95);
+  --border: rgba(255, 255, 255, .065);
+  --border2: rgba(255, 255, 255, .13);
+
+  --txt: #f0f0f8;
+  --txt-dim: rgba(240, 240, 248, .52);
+  --txt-muted: rgba(240, 240, 248, .28);
+
+  --font: 'Inter', sans-serif;
+  --disp: 'Outfit', sans-serif;
+  --ease: cubic-bezier(.4, 0, .2, 1);
+}
+
+.tour-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.viewer-pane {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+}
+
+.dollhouse-pane {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  background: #07070d;
+}
+
+.hidden {
+  display: none !important;
+}
+
+/* UI Overlays */
+.tour-toolbar {
+  position: absolute;
+  top: 1.5rem;
+  right: 1.5rem;
+  z-index: 100;
+  display: flex;
+  gap: 0.75rem;
+}
+
+.tour-btn {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--glass);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  color: var(--txt);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.tour-btn:hover {
+  background: var(--glass2);
+  border-color: var(--border2);
+  transform: scale(1.05);
+}
+
+.tour-btn.active {
+  background: rgba(212, 168, 83, 0.18);
+  border-color: var(--gold);
+  color: var(--gold);
+  box-shadow: 0 0 20px var(--gold-glow);
+}
+
+/* Dollhouse Specifics */
+.dollhouse-labels {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 51;
+}
+
+.dollhouse-label {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  font-family: var(--disp);
+  font-weight: 600;
+  font-size: 0.78rem;
+  color: var(--txt);
+  background: var(--glass);
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  padding: 5px 14px;
+  white-space: nowrap;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.7);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  pointer-events: none;
+  transition: opacity 0.3s var(--ease);
+}
+
+/* PSV Overrides */
+.psv-gallery {
+  background: var(--glass) !important;
+  backdrop-filter: blur(24px) !important;
+  bottom: 1.5rem !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  border-radius: 1rem !important;
+  width: auto !important;
+  padding: 0.5rem !important;
+  border: 1px solid var(--border) !important;
+}
+
+.psv-gallery__item {
+  border-radius: 0.75rem !important;
+}
+
+.psv-gallery__item--active {
+  border-color: var(--gold) !important;
+  box-shadow: 0 0 12px var(--gold-glow) !important;
+}

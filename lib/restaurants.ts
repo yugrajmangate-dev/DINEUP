@@ -8,6 +8,43 @@ export type OperatingHours = {
   hours: string;
 };
 
+export type RestaurantTable = {
+  id: string;
+  name: string;
+  capacity: number;
+  zone: string;
+};
+
+export type TourLink = {
+  nodeId: string;
+  position: { yaw: number; pitch: number };
+};
+
+export type TourMarker = {
+  id: string;
+  localPosition: { x: number; y: number; z: number };
+  label: string;
+  linkUrl?: string;
+  imageUrl?: string;
+  notes?: string;
+};
+
+export type TourNode = {
+  id: string;
+  name: string;
+  panorama: string;
+  thumbnail: string;
+  description?: string;
+  links?: TourLink[];
+  markers?: TourMarker[];
+  position?: { x: number; y: number; z: number }; // Dollhouse position
+};
+
+export type RestaurantTour = {
+  headline: string;
+  nodes: TourNode[];
+};
+
 export type Restaurant = {
   id: string;
   name: string;
@@ -30,6 +67,8 @@ export type Restaurant = {
   address: string;
   operating_hours: OperatingHours[];
   dietary_tags: DietaryTag[];
+  tables?: RestaurantTable[];
+  tour?: RestaurantTour | null;
 };
 
 // Data sourced from OpenStreetMap contributors (© OpenStreetMap, ODbL licence).

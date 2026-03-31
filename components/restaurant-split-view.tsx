@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, type Variants } from "framer-motion";
 import dynamic from "next/dynamic";
@@ -426,16 +427,25 @@ function RestaurantCard({ restaurant, distanceLabel, isActive, onSelect, onBookN
               </span>
             ))}
           </div>
-          <motion.button
-            type="button"
-            onClick={onBookNow}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-[#FF6B35] px-4 py-2 text-xs font-semibold text-white shadow-[0_4px_16px_rgba(255,107,53,0.28)] hover:shadow-[0_8px_24px_rgba(255,107,53,0.36)] active:scale-95"
-            animate={{ width: isActive ? 100 : 82 }}
-            transition={{ type: "spring", stiffness: 280, damping: 22 }}
-          >
-            Reserve
-            <ArrowUpRight className="h-3.5 w-3.5" />
-          </motion.button>
+          <div className="flex items-center gap-2">
+            <Link
+              href={`/restaurants/${restaurant.id}`}
+              onClick={(event) => event.stopPropagation()}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-gray-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:border-orange-200 hover:text-orange-600"
+            >
+              View Tour
+            </Link>
+            <motion.button
+              type="button"
+              onClick={onBookNow}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-[#FF6B35] px-4 py-2 text-xs font-semibold text-white shadow-[0_4px_16px_rgba(255,107,53,0.28)] hover:shadow-[0_8px_24px_rgba(255,107,53,0.36)] active:scale-95"
+              animate={{ width: isActive ? 100 : 82 }}
+              transition={{ type: "spring", stiffness: 280, damping: 22 }}
+            >
+              Reserve
+              <ArrowUpRight className="h-3.5 w-3.5" />
+            </motion.button>
+          </div>
         </div>
       </div>
     </motion.article>

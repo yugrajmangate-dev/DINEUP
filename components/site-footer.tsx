@@ -8,6 +8,7 @@ const footerSections = [
     title: "Product",
     links: [
       { label: "Explore Restaurants", href: "/#explore-section" },
+      { label: "Virtual Tour", href: "/virtual-tour" },
       { label: "My Bookings", href: "/dashboard" },
       { label: "AI Concierge", href: "/ai-concierge" },
       { label: "Live Map", href: "/#explore-section" },

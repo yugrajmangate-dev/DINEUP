@@ -1,10 +1,17 @@
 import type { Metadata } from "next";
 import { Inter, Playfair_Display } from "next/font/google";
+import "@photo-sphere-viewer/core/index.css";
+import "@photo-sphere-viewer/virtual-tour-plugin/index.css";
+import "@photo-sphere-viewer/gallery-plugin/index.css";
+import "@photo-sphere-viewer/compass-plugin/index.css";
+import "@photo-sphere-viewer/markers-plugin/index.css";
 import "./globals.css";
+import "@/components/virtual-tour/virtual-tour.css";
 
 import { AuthBootstrap } from "@/components/auth-bootstrap";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
+import { Toaster } from "sonner";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -38,6 +45,7 @@ export default function RootLayout({
         <SiteHeader />
         {children}
         <SiteFooter />
+        <Toaster position="bottom-right" richColors />
       </body>
     </html>
   );
